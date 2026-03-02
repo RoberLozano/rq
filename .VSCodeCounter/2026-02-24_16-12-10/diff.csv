@@ -1,0 +1,15 @@
+"filename", "language", "JavaScript", "HTML", "CSS", "SVG", "comment", "blank", "total"
+"c:\GitHub\rq\m\img\sword.svg", "SVG", 0, 0, 0, 36, 0, 1, 37
+"c:\GitHub\rq\m\img\sword2.svg", "SVG", 0, 0, 0, 13, 4, 0, 17
+"c:\GitHub\rq\m\index.html", "HTML", 0, 197, 0, 0, 8, 16, 221
+"c:\GitHub\rq\m\js\character-controller.js", "JavaScript", 1493, 0, 0, 0, 387, 329, 2209
+"c:\GitHub\rq\m\js\config.js", "JavaScript", 87, 0, 0, 0, 10, 7, 104
+"c:\GitHub\rq\m\js\dice-roller.js", "JavaScript", 174, 0, 0, 0, 3, 20, 197
+"c:\GitHub\rq\m\js\dom-utils.js", "JavaScript", 38, 0, 0, 0, 35, 12, 85
+"c:\GitHub\rq\m\js\layer-controller.js", "JavaScript", 116, 0, 0, 0, 38, 33, 187
+"c:\GitHub\rq\m\js\main.js", "JavaScript", 248, 0, 0, 0, 76, 67, 391
+"c:\GitHub\rq\m\js\map-controller.js", "JavaScript", 395, 0, 0, 0, 126, 96, 617
+"c:\GitHub\rq\m\js\svg-utils.js", "JavaScript", 64, 0, 0, 0, 34, 16, 114
+"c:\GitHub\rq\m\js\sync-controller.js", "JavaScript", 236, 0, 0, 0, 77, 55, 368
+"c:\GitHub\rq\m\styles.css", "CSS", 0, 0, 632, 0, 25, 104, 761
+"Total", "-", 2851, 197, 632, 49, 823, 756, 5308

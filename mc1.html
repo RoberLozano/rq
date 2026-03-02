@@ -1,0 +1,1699 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Mapa Interactivo con Personajes</title>
+    <style>
+        .map-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: -1;
+        }
+
+        .map-bg {
+            min-width: 100%;
+            min-height: 100%;
+            transform-origin: 0 0;
+            position: absolute;
+        }
+
+        #zoomControls {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 100;
+        }
+
+        .zoom-btn {
+            padding: 8px 12px;
+            margin: 0 4px;
+            cursor: pointer;
+        }
+
+        #canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .character {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            cursor: move;
+            z-index: 2;
+            transform-origin: center;
+        }
+
+        .controls {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        #tooltip {
+            position: fixed;
+            display: none;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 5px;
+            border-radius: 3px;
+            z-index: 1000;
+        }
+
+        #contextMenu {
+            position: absolute;
+            display: none;
+            background: white;
+            border: 1px solid #ccc;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+        }
+
+        #contextMenu ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        #contextMenu li {
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+
+        #contextMenu li:hover {
+            background: #eee;
+        }
+
+        #contextMenu li span.shortcut {
+            float: right;
+            margin-left: 10px;
+            color: #888;
+        }
+
+        .icon {
+            width: 50px;
+            height: 50px;
+        }
+
+        #characterContextMenu {
+            position: absolute;
+            display: none;
+            background: white;
+            border: 1px solid #ccc;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+        }
+
+        #characterContextMenu ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        #characterContextMenu li {
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+
+        #characterContextMenu li:hover {
+            background: #eee;
+        }
+
+        /* Estilos del modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1001;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.4);
+        }
+
+        .modal-content {
+            background-color: #000000;
+            margin: 0;
+            /* Quitar margen */
+            padding: 0;
+            /* Quitar padding */
+            border: none;
+            width: 100%;
+            height: 100%;
+            /* Cambiar de 100vh a 100% */
+            max-width: none;
+            /* Quitar límite de ancho */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+        }
+
+        /* Excepción para el modal de daño */
+        #damageModal .modal-content {
+            margin: 15% auto;
+            /* Restaurar margen */
+            padding: 20px;
+            /* Restaurar padding */
+            border: 1px solid #666;
+            width: 80%;
+            max-width: 500px;
+            height: auto;
+            /* Altura automática */
+            display: block;
+            /* Display normal */
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            display: block;
+            /* Mostrar el botón de cerrar */
+        }
+
+        #bodyCanvas {
+            max-height: 100%;
+            /* Cambiar de 100vh a 100% */
+            max-width: 100%;
+            /* Añadir max-width */
+            width: auto;
+            height: auto;
+            /* Cambiar a auto */
+            background-color: #000000;
+            cursor: pointer;
+            /* Indicar que es clickeable */
+        }
+
+        #reloadBody {
+            position: static;
+            /* Restaurar posición */
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            transition: background-color 0.3s;
+        }
+
+        #reloadBody:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        #reloadBody svg {
+            width: 24px;
+            height: 24px;
+            fill: currentColor;
+        }
+
+        .damage-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            padding: 1rem 0;
+        }
+
+        .damage-controls input,
+        .damage-controls select {
+            background: #333;
+            color: white;
+            border: 1px solid #666;
+            padding: 0.5rem;
+            border-radius: 4px;
+            margin-left: 1rem;
+        }
+
+        .damage-controls button {
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 1rem;
+        }
+
+        .damage-controls button:hover {
+            background: #d32f2f;
+        }
+
+        .char-name {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 1px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+            padding-bottom: 1px;
+        }
+
+        .char-damage {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .scale-controls {
+            position: absolute;
+            top: 50%;
+            right: 20px;
+            transform: translateY(-50%);
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            color: white;
+        }
+
+
+        #scaleValue {
+            text-align: center;
+            width: 4em;
+        }
+
+        .location-input {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #locationRoll {
+            width: 60px;
+            background: #333;
+            color: white;
+            border: 1px solid #666;
+            padding: 0.5rem;
+            border-radius: 4px;
+        }
+
+        #characterPositions {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+
+        .char-position {
+            margin: 4px 0;
+            color: #fff;
+        }
+
+        .wifi-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .wifi-button svg {
+            width: 24px;
+            height: 24px;
+            fill: #666;
+        }
+
+        .wifi-button.online svg {
+            fill: #4CAF50;
+        }
+
+        .wifi-button:hover {
+            background: rgba(0, 0, 0, 0.9);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="map-container" id="mapContainer">
+        <div class="map-bg" id="mapBg"></div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+    <div id="tooltip"></div>
+
+    <div class="controls">
+        v0.01
+        <label for="characterInput">
+            <img src="character-icon.png" class="icon" alt="Add Character">
+        </label>
+        <input type="file" id="characterInput" accept="image/*" multiple style="display: none;">
+        <label for="bgInput">
+            <img src="map-icon.png" class="icon" alt="Add Background">
+        </label>
+        <input type="file" id="bgInput" accept="image/*" style="display: none;">
+        <div id="distance"></div>
+        <div id="characterPositions"></div>
+    </div>
+
+    <button class="wifi-button" id="syncButton" title="Modo offline">
+        <svg viewBox="0 0 24 24">
+            <path
+                d="M12,21L15.6,16.2C14.6,15.45 13.35,15 12,15C10.65,15 9.4,15.45 8.4,16.2L12,21M12,3C7.95,3 4.21,4.34 1.2,6.6L3,9C5.5,7.12 8.62,6 12,6C15.38,6 18.5,7.12 21,9L22.8,6.6C19.79,4.34 16.05,3 12,3M12,9C9.3,9 6.81,9.89 4.8,11.4L6.6,13.8C8.1,12.67 9.97,12 12,12C14.03,12 15.9,12.67 17.4,13.8L19.2,11.4C17.19,9.89 14.7,9 12,9Z" />
+        </svg>
+    </button>
+
+    <div id="contextMenu">
+        <ul>
+            <li id="measureDistance">Medir Distancia <span class="shortcut">D</span></li>
+            <li id="drawPath">Dibujar Camino <span class="shortcut">C</span></li>
+            <li id="showCoordinates">Mostrar Coordenadas <span class="shortcut">X</span></li>
+        </ul>
+    </div>
+
+    <!-- Añadir el menú contextual para personajes -->
+    <div id="characterContextMenu">
+        <ul>
+            <li id="showBody">Ver cuerpo</li>
+            <li id="damageCharacter">Dañar personaje</li>
+            <li id="sanar" onclick="activeCharacter.p.cuerpo.sanar(100)">Sanar</li>
+            <li id="deleteCharacter" style="color: #f44336;">Eliminar personaje</li>
+        </ul>
+    </div>
+
+    <!-- Añadir el modal del cuerpo -->
+    <div id="bodyModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <canvas id="bodyCanvas" width="100%" height="100%"></canvas>
+            <div class="scale-controls">
+                <span id="scaleValue">100%</span>
+                <!-- <input type="range" id="scaleSlider" min="50" max="150" value="100" class="slider"> -->
+                <input type=range id="scaleSlider" min="50" max="150" value="100"
+                    style="writing-mode: vertical-lr; direction: rtl">
+            </div>
+            <button id="reloadBody" onclick="showBody()">
+                <span aria-hidden="true" class="v-icon notranslate theme--light">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-hidden="true"
+                        class="v-icon__svg">
+                        <path
+                            d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z">
+                        </path>
+                    </svg>
+                </span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Añadir el modal de daño después del modal del cuerpo -->
+    <div id="damageModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3>Aplicar daño</h3>
+            <div class="damage-controls">
+                <div>
+                    <label for="damageAmount">Cantidad de daño:</label>
+                    <input type="number" id="damageAmount" min="1" value="1">
+                </div>
+                <div class="location-input">
+                    <label for="damageLocation">Localización:</label>
+                    <select id="damageLocation"></select>
+                    <input type="number" id="locationRoll" min="1" max="100" value="1">
+                    <span style="cursor:pointer; padding:5px;">
+                        <img src="img/10_sided_die.svg" width="30" height="30"
+                            onclick="document.getElementById('locationRoll').value = Math.floor(Math.random() * 100) + 1; document.getElementById('locationRoll').dispatchEvent(new Event('input'));">
+                    </span>
+                </div>
+                <button id="applyDamage" onclick="applyDamage()">Aplicar daño</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/4.7.0/firebase.js"></script>
+
+    <script src='js/coor.js'></script>
+    <script src='js/utils.js'></script>
+    <script src='js/D.js'></script>
+    <script src='js/habilidades.js'></script>
+    <script src='js/inventario.js'></script>
+    <script src='js/localizaciones.js'></script>
+    <script src='js/armaduras.js'></script>
+    <script src='js/rol.js'></script>
+
+    <script>
+        let scale = 1;
+        var minScale = 0.5;
+        var maxScale = 300;
+
+        let dragStart = { x: 0, y: 0 };
+        let currentPos = { x: 0, y: 0 };
+        let isDragging = false;
+        let pathPoints = [];
+        let isDrawingPath = false;
+        let lastTouchDistance = 0;
+        let measuringDistance = false;
+        let startPoint = null;
+        var pxToKmRatio = 0.1; // Ratio de conversión de píxeles a kilómetros (ajustar según sea necesario)
+
+        const mapContainer = document.getElementById('mapContainer');
+        const mapBg = document.getElementById('mapBg');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const tooltip = document.getElementById('tooltip');
+        const contextMenu = document.getElementById('contextMenu');
+
+        // Reemplazar la variable char global por un array
+        let characters = [];
+        let characterPathPoints = new Map(); // Almacenar puntos de ruta para cada personaje
+        let characterObjects = new Map();  // Para almacenar datos de personajes
+        let activeCharacter = null;        // Para el personaje actualmente seleccionado
+
+        // Añadir después de las variables globales existentes
+        let charTooltip = document.createElement('div');
+        charTooltip.style.cssText = `
+            position: fixed;
+            display: none;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 5px;
+            border-radius: 3px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+        `;
+        document.body.appendChild(charTooltip);
+
+        // Establecer tamaño del canvas
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Funcionalidad de arrastre del mapa
+        mapContainer.addEventListener('mousedown', (e) => {
+            if (isDrawingPath) {
+                e.preventDefault();
+                pathPoints = [{ x: e.clientX, y: e.clientY }];
+                ctx.beginPath();
+                ctx.moveTo(e.clientX, e.clientY);
+                ctx.strokeStyle = 'blue';
+                ctx.lineWidth = 2;
+            } else if (!measuringDistance) {
+                isDragging = true;
+                dragStart = {
+                    x: e.clientX - currentPos.x,
+                    y: e.clientY - currentPos.y
+                };
+            }
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                currentPos = {
+                    x: e.clientX - dragStart.x,
+                    y: e.clientY - dragStart.y
+                };
+                mapBg.style.transform = `translate(${currentPos.x}px, ${currentPos.y}px) scale(${scale})`;
+            }
+            if (isDrawingPath && pathPoints.length > 0) {
+                // Clear previous drawing
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Redraw entire path
+                ctx.beginPath();
+                ctx.moveTo(pathPoints[0].x, pathPoints[0].y);
+                let totalDistance = 0;
+
+                for (let i = 1; i < pathPoints.length; i++) {
+                    ctx.lineTo(pathPoints[i].x, pathPoints[i].y);
+                    const dx = (pathPoints[i].x - pathPoints[i - 1].x) / scale;
+                    const dy = (pathPoints[i].y - pathPoints[i - 1].y) / scale;
+                    totalDistance += Math.sqrt(dx * dx + dy * dy) * pxToKmRatio;
+                }
+
+                // Draw current line segment
+                ctx.lineTo(e.clientX, e.clientY);
+                ctx.strokeStyle = 'blue';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Calculate final segment distance
+                const lastPoint = pathPoints[pathPoints.length - 1];
+                const dx = (e.clientX - lastPoint.x) / scale;
+                const dy = (e.clientY - lastPoint.y) / scale;
+                totalDistance += Math.sqrt(dx * dx + dy * dy) * pxToKmRatio;
+
+                // Show tooltip with total distance
+                tooltip.style.display = 'block';
+                tooltip.style.left = `${e.clientX + 10}px`;
+                tooltip.style.top = `${e.clientY + 10}px`;
+                tooltip.innerText = `Distancia: ${totalDistance.toFixed(2)} km`;
+
+                pathPoints.push({ x: e.clientX, y: e.clientY });
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (isDrawingPath) {
+                isDrawingPath = false;
+                tooltip.style.display = 'none';
+                // Calculate final total path length
+                let totalDistance = 0;
+                for (let i = 1; i < pathPoints.length; i++) {
+                    const dx = (pathPoints[i].x - pathPoints[i - 1].x) / scale;
+                    const dy = (pathPoints[i].y - pathPoints[i - 1].y) / scale;
+                    totalDistance += Math.sqrt(dx * dx + dy * dy) * pxToKmRatio;
+                }
+                if (totalDistance > 0) {
+                    //alert(`Longitud total del camino: ${totalDistance.toFixed(2)} km`);
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+            }
+            isDragging = false;
+            if (activeCharacter) {
+                const pathPoints = characterPathPoints.get(activeCharacter);
+                if (pathPoints && pathPoints.length > 0) {
+                    setTimeout(() => {
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        tooltip.style.display = 'none';
+                        characterPathPoints.delete(activeCharacter);
+                    }, 1500);
+                }
+            }
+        });
+
+        // Funcionalidad de arrastre del mapa en móviles
+        mapContainer.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                isDragging = true;
+                const touch = e.touches[0];
+                dragStart = {
+                    x: touch.clientX - currentPos.x,
+                    y: touch.clientY - currentPos.y
+                };
+            }
+        });
+
+        mapContainer.addEventListener('touchmove', (e) => {
+            if (isDragging && e.touches.length === 1) {
+                e.preventDefault();
+                const touch = e.touches[0];
+                currentPos = {
+                    x: touch.clientX - dragStart.x,
+                    y: touch.clientY - dragStart.y
+                };
+                mapBg.style.transform = `translate(${currentPos.x}px, ${currentPos.y}px) scale(${scale})`;
+            }
+        });
+
+        mapContainer.addEventListener('touchend', () => {
+            isDragging = false;
+        });
+
+        function adjustZoom(delta, mouseX, mouseY) {
+            let oldScale = scale;
+
+            scale = Math.max(minScale, Math.min(maxScale, scale + delta));
+
+            if (oldScale !== scale) {
+                // Calcular cuánto ha cambiado el zoom
+                const scaleRatio = scale / oldScale;
+
+                // Ajustar posición para hacer zoom hacia el punto del ratón
+                currentPos.x = mouseX - (mouseX - currentPos.x) * scaleRatio;
+                currentPos.y = mouseY - (mouseY - currentPos.y) * scaleRatio;
+
+                mapBg.style.transform = `translate(${currentPos.x}px, ${currentPos.y}px) scale(${scale})`;
+                adjustCharacterSize();
+            }
+            console.log("scale:" + scale);
+        }
+
+        // Actualizar el listener del evento de la rueda del ratón
+        mapContainer.addEventListener('wheel', (e) => {
+            if (!e.ctrlKey && !e.shiftKey && !e.altKey) {
+                e.preventDefault();
+                const rect = mapContainer.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+                console.log("wdelta:" + e.wheelDelta + "\n" + e.deltaY + "\n");
+
+                // adjustZoom(e.deltaY > 0 ? -0.1 : 0.1, mouseX, mouseY);
+                // para que dependa de la cantidad de píxeles que se mueve el scroll
+                adjustZoom(-e.deltaY / 120, mouseX, mouseY);
+            }
+        });
+
+        // Añadir soporte para el gesto de pellizcar en pantallas táctiles
+        mapContainer.addEventListener('touchmove', (e) => {
+
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                const touch1 = e.touches[0];
+                const touch2 = e.touches[1];
+                const currentTouchDistance = Math.hypot(touch2.clientX - touch1.clientX, touch1.clientY - touch2.clientY);
+
+                if (lastTouchDistance) {
+                    const delta = (currentTouchDistance - lastTouchDistance) / 100;
+                    const rect = mapContainer.getBoundingClientRect();
+                    const mouseX = (touch1.clientX + touch2.clientX) / 2 - rect.left;
+                    const mouseY = (touch1.clientY + touch2.clientY) / 2 - rect.top;
+                    adjustZoom(delta, mouseX, mouseY);
+                }
+
+                lastTouchDistance = currentTouchDistance;
+            }
+        });
+
+        mapContainer.addEventListener('touchend', () => {
+            lastTouchDistance = 0;
+        });
+
+        // Añadir soporte para las teclas + y -
+        window.addEventListener('keydown', (e) => {
+            if (e.key === '+' || e.key === '=') {
+                adjustZoom(0.1, window.innerWidth / 2, window.innerHeight / 2);
+            } else if (e.key === '-') {
+                adjustZoom(-0.1, window.innerWidth / 2, window.innerHeight / 2);
+            } else if (e.key === 'd' || e.key === 'D') {
+                startMeasuringDistance();
+            } else if (e.key === 'c' || e.key === 'C') {
+                startPathDrawing();
+            } else if (e.key === 'x' || e.key === 'X') {
+                showingCoordinates = true;
+            }
+        });
+
+
+        // Mostrar menú contextual con click derecho
+        mapContainer.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            contextMenu.style.display = 'block';
+            contextMenu.style.left = `${e.clientX}px`;
+            contextMenu.style.top = `${e.clientY}px`;
+        });
+
+        // Ocultar menú contextual al hacer click en cualquier lugar
+        window.addEventListener('click', () => {
+            contextMenu.style.display = 'none';
+        });
+
+        // Iniciar medición de distancia
+        document.getElementById('measureDistance').addEventListener('click', startMeasuringDistance);
+
+        function startMeasuringDistance() {
+            measuringDistance = true;
+            startPoint = null;
+            contextMenu.style.display = 'none';
+        }
+
+        mapContainer.addEventListener('click', (e) => {
+            if (measuringDistance) {
+                if (!startPoint) {
+                    startPoint = { x: e.clientX, y: e.clientY };
+                } else {
+                    const endPoint = { x: e.clientX, y: e.clientY };
+                    const distance = Math.sqrt(
+                        Math.pow((endPoint.x - startPoint.x) / scale, 2) +
+                        Math.pow((endPoint.y - startPoint.y) / scale, 2)
+                    ) * pxToKmRatio;
+                    // alert(`Distancia: ${distance.toFixed(2)} km`);
+                    measuringDistance = false;
+                    startPoint = null;
+                }
+            }
+            if (showingCoordinates) {
+                const x = (e.clientX - currentPos.x) / scale - dx;
+                const y = (e.clientY - currentPos.y) / scale - dy;
+
+                tooltip.style.display = 'block';
+                tooltip.style.left = `${e.clientX + 10}px`;
+                tooltip.style.top = `${e.clientY + 10}px`;
+                tooltip.innerHTML = `Coordenadas del mapa:<br>X: ${x.toFixed(2)}<br>Y: ${y.toFixed(2)}`;
+
+                // Desactivar después de mostrar
+                showingCoordinates = false;
+
+                // Ocultar tooltip después de 3 segundos
+                setTimeout(() => {
+                    tooltip.style.display = 'none';
+                }, 3000);
+            }
+        });
+
+        mapContainer.addEventListener('mousemove', (e) => {
+            if (measuringDistance && startPoint) {
+                const endPoint = { x: e.clientX, y: e.clientY };
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.beginPath();
+                ctx.moveTo(startPoint.x, startPoint.y);
+                ctx.lineTo(endPoint.x, endPoint.y);
+                ctx.strokeStyle = 'red';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                const distance = Math.sqrt(
+                    Math.pow((endPoint.x - startPoint.x) / scale, 2) +
+                    Math.pow((endPoint.y - startPoint.y) / scale, 2)
+                ) * pxToKmRatio;
+                tooltip.style.display = 'block';
+                tooltip.style.left = `${endPoint.x + 10}px`;
+                tooltip.style.top = `${endPoint.y + 10}px`;
+                tooltip.innerText = `Distancia: ${distance.toFixed(2)} km`;
+            } else {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                tooltip.style.display = 'none';
+            }
+        });
+
+        // Cargar imagen de fondo
+        document.getElementById('bgInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                let reader;
+                // Verificar si el archivo es un SVG y leer la escala si es necesario
+                if (file.type === 'image/svg+xml') {
+                    reader = new FileReader();
+                    reader.onload = (event) => {
+                        const svgContent = event.target.result;
+                        const scale = getSvgScale(svgContent);
+                        if (scale) {
+                            pxToKmRatio = scale;
+                            console.log("pxToKmRatio:" + pxToKmRatio);
+                        }
+                    };
+                    reader.readAsText(file);
+                }
+                reader = new FileReader();
+                reader.onload = (event) => {
+                    mapBg.style.backgroundImage = `url(${event.target.result})`;
+                    mapBg.style.backgroundSize = 'contain';
+                    mapBg.style.backgroundRepeat = 'no-repeat';
+                };
+                reader.readAsDataURL(file);
+
+
+            }
+        });
+
+        // Creación y movimiento de personajes
+        function createCharacter(file, src) {
+            const char = document.createElement('img');
+            char.src = src;
+            char.className = 'character';
+            char.draggable = false;
+            char.nombre = file.split('/').pop().split('.')[0];
+            console.log("nombre:" + char.nombre);
+
+            // Cargar personaje de forma asíncrona
+            let ruta = `personajes/${char.nombre}/`;
+            fbActual = database.ref(ruta);
+
+            fbActual.once('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    console.log("Personaje cargado:", data);
+                    // Convertir los datos a un objeto de personaje
+                    if (data.clase) {
+                        char.p = Clase.convertir(data);
+                    } else {
+                        char.p = new Humanoide({});
+                    }
+                    char.p.setAll(data);
+                    char.p.act();
+                    console.log("Personaje guardado en char.p:", char.p);
+                }
+            });
+
+            mapBg.appendChild(char);
+            characters.push(char);
+
+            let isDraggingChar = false;
+            let charPos = { x: 0, y: 0 };
+            let startOffset = { x: 0, y: 0 };
+            let rotation = 0;
+            char.rotation = rotation; // Añadir la rotación como propiedad del char
+
+            // Añadir rotación con Shift + rueda del ratón
+            char.addEventListener('wheel', (e) => {
+                if (e.shiftKey) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    char.rotation += e.deltaY > 0 ? 15 : -15; // Actualizar rotación
+                    const charData = characterObjects.get(char) || {};
+                    charData.rotation = char.rotation;
+                    characterObjects.set(char, charData);
+                    updateCharacterTransform(char, charData.mapX || 0, charData.mapY || 0, char.rotation);
+                    if (isOnline) {
+                        saveMapState();
+                    }
+                }
+            });
+
+            char.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+                isDraggingChar = true;
+                activeCharacter = char; // Establecer el personaje activo
+
+                // Obtener posición actual incluyendo rotación
+                const transform = char.style.transform || '';
+                const currentTranslate = transform.match(/translate\(([-\d.]+)px,\s*([-\d.]+)px\)/) || [0, 0, 0];
+                charPos.x = parseFloat(currentTranslate[1]) || 0;
+                charPos.y = parseFloat(currentTranslate[2]) || 0;
+
+                startOffset = {
+                    x: (e.clientX - currentPos.x) / scale - charPos.x,
+                    y: (e.clientY - currentPos.y) / scale - charPos.y
+                };
+
+                char.style.cursor = 'grabbing';
+                characterPathPoints.set(char, [{ x: e.clientX, y: e.clientY }]);
+                char.isMoving = true;
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (isDraggingChar) {
+                    // Calcular la nueva posición con precisión decimal
+                    const x = (e.clientX - currentPos.x) / scale - startOffset.x;
+                    const y = (e.clientY - currentPos.y) / scale - startOffset.y;
+
+                    // Usar transform para un movimiento más suave
+                    char.style.transform = `translate(${x}px, ${y}px) rotate(${rotation}deg) scale(${1 / scale})`;
+                    charPos = { x, y };
+                    updateDistance();
+                    handleCharacterMove(char, e.clientX, e.clientY, startOffset);
+                }
+            });
+
+            window.addEventListener('mouseup', () => {
+                isDraggingChar = false;
+                if (char) {
+                    char.style.cursor = 'grab';
+                    char.isMoving = false;
+                }
+            });
+
+            // Actualizar el manejo táctil de manera similar
+            char.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    e.stopPropagation();
+                    isDraggingChar = true;
+                    const touch = e.touches[0];
+
+                    const transform = char.style.transform || '';
+                    const currentTranslate = transform.match(/translate\(([-\d.]+)px,\s*([-\d.]+)px\)/) || [0, 0, 0];
+                    charPos.x = parseFloat(currentTranslate[1]) || 0;
+                    charPos.y = parseFloat(currentTranslate[2]) || 0;
+
+                    startOffset = {
+                        x: (touch.clientX - currentPos.x) / scale - charPos.x,
+                        y: (touch.clientY - currentPos.y) / scale - charPos.y
+                    };
+
+                    char.style.cursor = 'grabbing';
+                    characterPathPoints.set(char, [{ x: touch.clientX, y: touch.clientY }]);
+                    char.isMoving = true;
+                }
+            });
+
+            char.addEventListener('touchmove', (e) => {
+                if (isDraggingChar && e.touches.length === 1) {
+                    e.preventDefault();
+                    const touch = e.touches[0];
+
+                    const x = (touch.clientX - currentPos.x) / scale - startOffset.x;
+                    const y = (touch.clientY - currentPos.y) / scale - startOffset.y;
+
+                    char.style.transform = `translate(${x}px, ${y}px) rotate(${rotation}deg) scale(${1 / scale})`;
+                    charPos = { x, y };
+                    updateDistance();
+
+                    handleCharacterMove(char, touch.clientX, touch.clientY, startOffset);
+                }
+            });
+
+            char.addEventListener('touchend', (e) => {
+                isDraggingChar = false;
+                if (char) {
+                    char.style.cursor = 'grab';
+                    char.isMoving = false;
+                }
+            });
+
+            char.addEventListener('touchcancel', (e) => {
+                isDraggingChar = false;
+                if (char) {
+                    char.style.cursor = 'grab';
+                    char.isMoving = false;
+                }
+            });
+
+            window.addEventListener('touchend', () => {
+                isDraggingChar = false;
+            });
+
+            window.addEventListener('touchcancel', () => {
+                isDraggingChar = false;
+            });
+
+            // Modificar los eventos del tooltip dentro de createCharacter
+            char.addEventListener('mouseover', (e) => {
+                if (char.nombre) {
+                    let tooltipText = char.nombre;
+                    // if (char.p && char.p.pg) 
+                    tooltipText += ` (${char.p.pg}/${char.p.getMaxPuntos('PG')})`;
+
+
+                    // Añadir información de daño si el personaje tiene localizaciones dañadas
+                    if (char.p && char.p.cuerpo) {
+                        const locDañadas = char.p.cuerpo.todas().filter(loc => loc.daño > 0);
+                        if (locDañadas.length > 0) {
+                            tooltipText =
+                                `<div class="char-name">${char.nombre}  <span style="font-size:0.8em; font-weight:normal;">
+                                (${char.p.pg}/${char.p.getMaxPuntos('PG')})
+                                </span></div>`;
+                            tooltipText += '<div class="char-damage">';
+                            locDañadas.forEach(loc => {
+                                let style = loc.daño >= loc.pg ? `style="color:red; font-weight:bold;"` : "";
+
+                                tooltipText += `${loc.nombre}: <span ${style};">${loc.daño}</span>/${loc.pg}<br>`;
+                            });
+                            tooltipText += '</div>';
+                        }
+                    }
+
+                    charTooltip.style.whiteSpace = 'pre-line'; // Para que respete los saltos de línea
+                    charTooltip.innerHTML = tooltipText; // Cambiado de textContent a innerHTML
+                    charTooltip.style.display = 'block';
+                    charTooltip.style.left = `${e.pageX - charTooltip.offsetWidth - 10}px`;
+                    charTooltip.style.top = `${e.pageY + 10}px`;
+                }
+            });
+
+            char.addEventListener('mousemove', (e) => {
+                if (char.nombre && charTooltip.style.display === 'block') {
+                    charTooltip.style.left = `${e.pageX - charTooltip.offsetWidth - 10}px`; // Mover a la izquierda
+                    charTooltip.style.top = `${e.pageY + 10}px`;
+                }
+            });
+
+            char.addEventListener('mouseout', () => {
+                charTooltip.style.display = 'none';
+            });
+
+            // Añadir evento contextmenu para personajes
+            char.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // Ocultar menú contextual general
+                contextMenu.style.display = 'none';
+
+                // Mostrar menú contextual de personajes
+                characterContextMenu.style.display = 'block';
+                characterContextMenu.style.left = `${e.clientX}px`;
+                characterContextMenu.style.top = `${e.clientY}px`;
+
+                // Guardar referencia al personaje actualmente seleccionado
+                activeCharacter = char;
+            });
+
+            updateCharacterPositions();
+
+            return char;
+        }
+
+        document.getElementById('characterInput').addEventListener('change', (e) => {
+            Array.from(e.target.files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const char = createCharacter(file.name, event.target.result);
+                    // Posicionar cada nuevo personaje en una ubicación ligeramente diferente
+                    const x = 0;
+                    const y = 0;
+                    updateCharacterTransform(char, x, y, 0);
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+
+        function updateDistance() {
+            const chars = document.getElementsByClassName('character');
+            if (chars.length >= 2) {
+                let distances = [];
+                for (let i = 0; i < chars.length; i++) {
+                    for (let j = i + 1; j < chars.length; j++) {
+                        const char1 = chars[i].getBoundingClientRect();
+                        const char2 = chars[j].getBoundingClientRect();
+                        const distance = Math.sqrt(
+                            Math.pow((char2.left - char1.left) / scale, 2) +
+                            Math.pow((char2.top - char1.top) / scale, 2)
+                        ) * pxToKmRatio;
+                        distances.push(`${i + 1}-${j + 1}: ${distance.toFixed(2)}km`);
+                    }
+                }
+                document.getElementById('distance').innerText = distances.join(' | ');
+            }
+        }
+
+        function getSvgScale(svgContent) {
+            const parser = new DOMParser();
+            const svgDoc = parser.parseFromString(svgContent, 'image/svg+xml');
+            const metadata = svgDoc.querySelector('metadata');
+
+            if (metadata) {
+                const scaleElement = metadata.querySelector('variable[name="escala"]');
+                if (scaleElement) {
+                    console.log(scaleElement.getAttribute('value'));
+                    return parseFloat(scaleElement.getAttribute('value'));
+                }
+            }
+
+            return null; // Return null if the scale is not found
+        }
+
+        // Ajustar tamaño de los personajes basado en el nivel de zoom
+        function adjustCharacterSize() {
+            characters.forEach(char => {
+                const transform = char.style.transform || '';
+                const currentTranslate = transform.match(/translate\(([-\d.]+)px,\s*([-\d.]+)px\)/) || [0, 0, 0];
+                const rotation = transform.match(/rotate\(([-\d.]+)deg\)/) || [0, 0];
+                const x = parseFloat(currentTranslate[1]) || 0;
+                const y = parseFloat(currentTranslate[2]) || 0;
+                const r = parseFloat(rotation[1]) || 0;
+                updateCharacterTransform(char, x, y, r);
+            });
+        }
+
+        // Llamar a adjustCharacterSize cada vez que cambie el nivel de zoom
+        document.addEventListener('wheel', adjustCharacterSize);
+        document.addEventListener('touchmove', adjustCharacterSize);
+        document.addEventListener('pointermove', adjustCharacterSize);
+
+        // Add new function for path drawing
+        function startPathDrawing() {
+            isDrawingPath = true;
+            pathPoints = [];
+            measuringDistance = false;
+            contextMenu.style.display = 'none';
+        }
+
+        // Add click handler for new menu option
+        document.getElementById('drawPath').addEventListener('click', startPathDrawing);
+
+        // Función helper para actualizar transform
+        function updateCharacterTransform(char, x, y, rotation) {
+            char.style.transform = `translate(${x}px, ${y}px) rotate(${rotation}deg) scale(${1 / scale})`;
+        }
+
+        // Modificar la función handleCharacterMove para incluir el dibujo del camino
+        function handleCharacterMove(char, clientX, clientY, offset) {
+            const x = (clientX - currentPos.x) / scale - offset.x + dx;
+            const y = (clientY - currentPos.y) / scale - offset.y + dy;
+            console.log("x:" + x + " y:" + y);
+
+
+            // Guardar la posición en el objeto del personaje
+            const charData = characterObjects.get(char) || {};
+            lastX = charData.mapX;
+            lastY = charData.mapY;
+            charData.mapX = x;
+            charData.mapY = y;
+            charData.rotation = char.rotation || 0; // Mantener la rotación actual
+            characterObjects.set(char, charData);
+
+            // Actualizar la transformación
+            updateCharacterTransform(char, x - dx, y - dy, charData.rotation);
+
+            // Actualizar el camino
+            if (!characterPathPoints.has(char)) {
+                characterPathPoints.set(char, []);
+            }
+            const pathPoints = characterPathPoints.get(char);
+            pathPoints.push({ x: clientX, y: clientY });
+
+            // Dibujar el camino
+            drawCharacterPath(char, pathPoints);
+
+            updateCharacterPositions();
+
+            if (isOnline) {
+                saveMapState();
+            }
+        }
+
+        // Añadir función para dibujar el camino del personaje
+        function drawCharacterPath(char, points) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (points.length < 2) return;
+
+            // Dibujar el camino
+            ctx.beginPath();
+            ctx.setLineDash([5, 5]);
+            ctx.strokeStyle = 'blue';
+            ctx.lineWidth = 2;
+
+            ctx.moveTo(points[0].x, points[0].y);
+            for (let i = 1; i < points.length; i++) {
+                ctx.lineTo(points[i].x, points[i].y);
+            }
+            ctx.stroke();
+
+            // Calcular y mostrar la distancia
+            let totalDistance = 0;
+            for (let i = 1; i < points.length; i++) {
+                const dx = (points[i].x - points[i - 1].x) / scale;
+                const dy = (points[i].y - points[i - 1].y) / scale;
+                totalDistance += Math.sqrt(dx * dx + dy * dy) * pxToKmRatio;
+            }
+
+            // Actualizar tooltip con la distancia
+            tooltip.style.display = 'block';
+            tooltip.style.left = `${points[points.length - 1].x + 10}px`;
+            tooltip.style.top = `${points[points.length - 1].y + 10}px`;
+            tooltip.innerText = `Distancia: ${totalDistance.toFixed(2)} km`;
+        }
+
+        // Añadir función para actualizar posiciones de personajes
+        function updateCharacterPositions() {
+            const positionsDiv = document.getElementById('characterPositions');
+            positionsDiv.innerHTML = '';
+
+            characters.forEach(char => {
+                const data = characterObjects.get(char) || {};
+                if (data.mapX !== undefined && data.mapY !== undefined) {
+                    const posDiv = document.createElement('div');
+                    posDiv.className = 'char-position';
+                    const x = (data.mapX - dx).toFixed(3);
+                    const y = (data.mapY - dy).toFixed(3);
+                    posDiv.textContent = `${char.nombre}: (${x}, ${y})
+                                        Width: ${window.outerWidth - window.innerWidth}
+                                        Height: ${window.outerHeight - window.innerHeight}
+                                        `;
+                    positionsDiv.appendChild(posDiv);
+                }
+            });
+        }
+
+        // Añadir variables para el modal y menús
+        const characterContextMenu = document.getElementById('characterContextMenu');
+        const bodyModal = document.getElementById('bodyModal');
+        const closeModal = document.querySelector('.close');
+        const bodyCanvas = document.getElementById('bodyCanvas');
+
+        // Evento para mostrar el cuerpo
+        document.getElementById('showBody').addEventListener('click', () => {
+            console.log("Click en showBody, activeCharacter:", activeCharacter);
+            if (activeCharacter && activeCharacter.p) {
+                console.log("Mostrando cuerpo de:", activeCharacter.p.nombre);
+                bodyModal.style.display = 'block';
+
+                // Retrasar el primer dibujado para asegurar que el modal está visible
+                setTimeout(() => {
+                    showBody();
+                    // Recargar después de 200ms para asegurar que se dibuja bien
+                    setTimeout(showBody, 200);
+                }, 100);
+            } else {
+                console.log("No hay personaje activo o no está cargado correctamente");
+            }
+        });
+
+        // Nueva función para mostrar el cuerpo (separada para poder llamarla desde el botón)
+        function showBody() {
+            if (!activeCharacter || !activeCharacter.p) return;
+
+            // Obtener dimensiones del contenedor modal
+            const modalContent = bodyModal.querySelector('.modal-content');
+            const containerWidth = modalContent.clientWidth;
+            const containerHeight = modalContent.clientHeight;
+
+            // Calcular las dimensiones manteniendo la proporción 500x1000
+            const originalRatio = 500 / 1000;
+
+            let width, height;
+
+            // Calcular dimensiones basadas en el espacio disponible
+            if (containerHeight * originalRatio <= containerWidth) {
+                // Si limitamos por altura
+                height = containerHeight;
+                width = height * originalRatio;
+            } else {
+                // Si limitamos por ancho
+                width = containerWidth;
+                height = width / originalRatio;
+            }
+
+            // Ajustar dimensiones del canvas
+            bodyCanvas.width = width;
+            bodyCanvas.height = height;
+
+            // Calcular el zoom basado en las dimensiones originales
+            const zoomCuerpo = height / 1000;
+
+            console.log("Dibujando cuerpo con zoom:", zoomCuerpo);
+            activeCharacter.p.cuerpoDaño('bodyCanvas', zoomCuerpo);
+        }
+
+        // Añadir listener de resize para cuando cambie el tamaño de la ventana
+        window.addEventListener('resize', () => {
+            if (bodyModal.style.display === 'block') {
+                showBody();
+            }
+        });
+
+        // Añadir evento de click al canvas para cerrar
+        bodyCanvas.removeEventListener('click', () => { });
+
+        // Añadir el listener para el botón de recarga usando el ID correcto
+        document.getElementById('reloadBody').addEventListener('click', showBody);
+
+        // Modificar los eventos de cerrar el modal
+        closeModal.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevenir que el click se propague
+            bodyModal.style.display = 'none';
+        });
+
+        // Cerrar el modal al hacer click fuera
+        window.addEventListener('click', (e) => {
+            if (e.target === bodyModal) {
+                bodyModal.style.display = 'none';
+            }
+        });
+
+        // Ocultar menús contextuales al hacer click
+        window.addEventListener('click', () => {
+            contextMenu.style.display = 'none';
+            characterContextMenu.style.display = 'none';
+        });
+
+        // Añadir las variables para el modal de daño
+        const damageModal = document.getElementById('damageModal');
+        const damageLocation = document.getElementById('damageLocation');
+        const damageCloseBtn = damageModal.querySelector('.close');
+
+        // Evento para mostrar el modal de daño
+        document.getElementById('damageCharacter').addEventListener('click', () => {
+            if (activeCharacter && activeCharacter.p) {
+                // Limpiar y llenar el selector de localizaciones
+                damageLocation.innerHTML = '';
+                activeCharacter.p.cuerpo.todas().forEach(loc => {
+                    const option = document.createElement('option');
+                    option.value = loc.nombre;
+                    option.textContent = `${loc.nombre} (${loc.daño}/${loc.pg})`;
+                    option.dataset.min = loc.min;
+                    option.dataset.max = loc.max;
+                    damageLocation.appendChild(option);
+                });
+
+                // Actualizar el valor del roll con el rango de la primera localización
+                const firstOption = damageLocation.firstElementChild;
+                if (firstOption) {
+                    document.getElementById('locationRoll').value = firstOption.dataset.min;
+                }
+
+                damageModal.style.display = 'block';
+            }
+        });
+
+        // Añadir evento para actualizar el roll cuando cambie la localización
+        document.getElementById('damageLocation').addEventListener('change', (e) => {
+            const option = e.target.selectedOptions[0];
+            document.getElementById('locationRoll').value = option.dataset.min;
+        });
+
+        // Añadir evento para actualizar la localización cuando cambie el roll
+        document.getElementById('locationRoll').addEventListener('input', (e) => {
+            const roll = parseInt(e.target.value);
+            const options = damageLocation.options;
+
+            for (let i = 0; i < options.length; i++) {
+                const min = parseInt(options[i].dataset.min);
+                const max = parseInt(options[i].dataset.max);
+
+                if (roll >= min && roll <= max) {
+                    damageLocation.selectedIndex = i;
+                    break;
+                }
+            }
+        });
+
+        // Función para aplicar el daño
+        function applyDamage() {
+            if (!activeCharacter || !activeCharacter.p) return;
+
+            const amount = parseInt(document.getElementById('damageAmount').value);
+            const location = damageLocation.value;
+
+            if (amount && location) {
+                activeCharacter.p.cuerpo.dañarLocalizacion(amount, location);
+                // Actualizar el canvas del cuerpo si está visible
+                if (bodyModal.style.display === 'block') {
+                    showBody();
+                }
+                damageModal.style.display = 'none';
+            }
+        }
+
+        // Cerrar el modal de daño
+        damageCloseBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            damageModal.style.display = 'none';
+        });
+
+        // Incluir el modal de daño en el cierre al hacer click fuera
+        window.addEventListener('click', (e) => {
+            if (e.target === damageModal) {
+                damageModal.style.display = 'none';
+            }
+        });
+
+        // Modificar el evento de click para el modal del cuerpo
+        bodyModal.addEventListener('click', (e) => {
+            bodyModal.style.display = 'none';
+        });
+
+        // Evitar que el click en los controles cierre el modal
+        bodyCanvas.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+
+        reloadBody.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+
+        // Remover los otros eventos de cerrado del modal del cuerpo que ya no son necesarios
+        closeModal.removeEventListener('click', () => { });
+        window.removeEventListener('click', () => { });
+
+        // Añadir variables para el escalado
+        let baseWidth = 0;
+        let baseHeight = 0;
+        let currentScale = 1;
+
+        // Modificar la función showBody
+        function showBody() {
+            if (!activeCharacter || !activeCharacter.p) return;
+
+            const modalContent = bodyModal.querySelector('.modal-content');
+            const containerWidth = modalContent.clientWidth;
+            const containerHeight = modalContent.clientHeight;
+            const originalRatio = 500 / 1000;
+
+            // Calcular las dimensiones base (solo la primera vez)
+            if (baseWidth === 0) {
+                if (containerHeight * originalRatio <= containerWidth) {
+                    baseHeight = containerHeight;
+                    baseWidth = baseHeight * originalRatio;
+                } else {
+                    baseWidth = containerWidth;
+                    baseHeight = baseWidth / originalRatio;
+                }
+            }
+
+            // Aplicar escala actual
+            const width = baseWidth * (currentScale);
+            const height = baseHeight * (currentScale);
+
+            bodyCanvas.width = width;
+            bodyCanvas.height = height;
+
+            const zoomCuerpo = height / 1000;
+            activeCharacter.p.cuerpoDaño('bodyCanvas', zoomCuerpo);
+        }
+
+        // Añadir el listener para el slider
+        const scaleSlider = document.getElementById('scaleSlider');
+        const scaleValue = document.getElementById('scaleValue');
+
+        scaleSlider.addEventListener('input', (e) => {
+            currentScale = e.target.value / 100;
+            scaleValue.textContent = `${e.target.value}%`;
+            showBody();
+        });
+
+        // Modificar el evento para mostrar el cuerpo incluyendo reset del escalado
+        document.getElementById('showBody').addEventListener('click', () => {
+            console.log("Click en showBody, activeCharacter:", activeCharacter);
+            if (activeCharacter && activeCharacter.p) {
+                // Reset escala al abrir
+                currentScale = 1;
+                baseWidth = 0;
+                baseHeight = 0;
+                scaleSlider.value = 100;
+                scaleValue.textContent = '100%';
+
+                bodyModal.style.display = 'block';
+                setTimeout(() => {
+                    showBody();
+                    setTimeout(showBody, 200);
+                }, 100);
+            }
+        });
+
+        // Función para eliminar personaje
+        document.getElementById('deleteCharacter').addEventListener('click', () => {
+            if (activeCharacter) {
+                // Remover del array de personajes
+                const index = characters.indexOf(activeCharacter);
+                if (index > -1) {
+                    characters.splice(index, 1);
+                }
+
+                // Remover el elemento del DOM
+                activeCharacter.remove();
+
+                // Limpiar la referencia al personaje activo
+                activeCharacter = null;
+
+                // Ocultar el menú contextual
+                characterContextMenu.style.display = 'none';
+
+                // Actualizar la lista de personajes disponibles
+                updateCharacterList();
+            }
+        });
+
+        function updateCharacterList() {
+            // Limpiar la lista actual
+            const characterInput = document.getElementById('characterInput');
+            characterInput.value = ''; // Resetear el input file
+
+
+        }
+
+        let isOnline = false;
+        const syncButton = document.getElementById('syncButton');
+
+        function toggleOnlineMode() {
+            isOnline = !isOnline;
+            syncButton.classList.toggle('online');
+            syncButton.title = isOnline ? 'Modo online' : 'Modo offline';
+
+            if (isOnline) {
+                startSync();
+            } else {
+                stopSync();
+            }
+        }
+
+        function startSync() {
+            saveMapState();
+
+            database.ref('mapas/actual').on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (!data) return;
+
+                characters.forEach(char => {
+                    if (data[char.nombre] && !char.isMoving) {
+                        const pos = data[char.nombre];
+                        char.rotation = pos.rotation || 0; // Actualizar la rotación del char
+                        updateCharacterTransform(char, pos.x, pos.y, pos.rotation || 0);
+
+                        const charData = characterObjects.get(char) || {};
+                        charData.mapX = pos.x;
+                        charData.mapY = pos.y;
+                        charData.rotation = pos.rotation || 0;
+                        characterObjects.set(char, charData);
+
+                        updateCharacterPositions();
+                    }
+                });
+            });
+        }
+
+        function stopSync() {
+            // Detener escucha de cambios
+            database.ref('mapas/actual').off();
+        }
+
+        function saveMapState() {
+            if (!isOnline) return;
+
+            const state = {};
+            characters.forEach(char => {
+                const data = characterObjects.get(char) || {};
+                state[char.nombre] = {
+                    x: data.mapX,
+                    y: data.mapY,
+                    rotation: data.rotation || 0
+                };
+            });
+
+            database.ref('mapas/actual').set(state);
+        }
+
+        // Añadir listener para el botón
+        syncButton.addEventListener('click', toggleOnlineMode);
+
+        // Añadir después de las variables globales
+        async function loadMapFromURL(url) {
+            console.log('Intentando cargar mapa desde:', url);
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+                const blob = await response.blob();
+                const file = new File([blob], url.split('/').pop(), { type: blob.type });
+
+                return new Promise((resolve, reject) => {
+                    // Crear dos FileReaders diferentes
+                    const svgReader = new FileReader();
+                    const imageReader = new FileReader();
+
+                    // Primero leer como texto si es SVG para obtener la escala
+                    if (file.type === 'image/svg+xml') {
+                        svgReader.onload = (event) => {
+                            const svgContent = event.target.result;
+                            const scale = getSvgScale(svgContent);
+                            if (scale) {
+                                console.log('Escala del mapa detectada:', scale);
+                                pxToKmRatio = scale;
+                            }
+
+                            // Después de leer el SVG, leer como URL de datos
+                            imageReader.onload = (event) => {
+                                mapBg.style.backgroundImage = `url(${event.target.result})`;
+                                mapBg.style.backgroundSize = 'contain';
+                                mapBg.style.backgroundRepeat = 'no-repeat';
+                                console.log('Mapa cargado exitosamente');
+                                resolve();
+                            };
+                            imageReader.onerror = reject;
+                            imageReader.readAsDataURL(file);
+                        };
+                        svgReader.onerror = reject;
+                        svgReader.readAsText(file);
+                    } else {
+                        // Si no es SVG, solo leer como URL de datos
+                        imageReader.onload = (event) => {
+                            mapBg.style.backgroundImage = `url(${event.target.result})`;
+                            mapBg.style.backgroundSize = 'contain';
+                            mapBg.style.backgroundRepeat = 'no-repeat';
+                            console.log('Mapa cargado exitosamente');
+                            resolve();
+                        };
+                        imageReader.onerror = reject;
+                        imageReader.readAsDataURL(file);
+                    }
+                });
+            } catch (error) {
+                console.error('Error cargando el mapa:', error);
+                try {
+                    await loadMapFromURL('img/Elahiun.svg');
+                } catch (error2) {
+                    console.error('Error en ruta alternativa:', error2);
+                }
+            }
+        }
+
+        async function loadCharacterFromURL(url) {
+            console.log('Intentando cargar personaje desde:', url);
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+                const blob = await response.blob();
+                const file = new File([blob], url.split('/').pop(), { type: blob.type });
+
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const char = createCharacter(file.name, event.target.result);
+                        console.log('Personaje cargado:', char.nombre);
+                        resolve(char);
+                    };
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+            } catch (error) {
+                console.error('Error cargando el personaje:', error);
+            }
+        }
+
+        // Función de inicialización mejorada
+        async function initMap() {
+            console.log('Iniciando carga del mapa y personaje...');
+            try {
+                await loadMapFromURL('mapas/Elahiun.svg');
+                await loadCharacterFromURL('img/tokens/Rosssel.png');
+
+                console.log('Carga inicial completada');
+            } catch (error) {
+                console.error('Error en initMap:', error);
+            }
+        }
+
+        // Modificar el evento load para asegurar que se ejecuta después de que todo esté listo
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('DOM cargado, iniciando initMap...');
+            initMap();
+        });
+
+        // console.log("window.Width:", window.outerWidth-window.innerWidth);
+        // console.log("window.Height:", window.outerHeight- window.innerHeight);
+
+
+        // Añadir después de las variables globales existentes
+        let dx = 0; // Ajuste de coordenada X
+        let dy = 0; // Ajuste de coordenada Y
+
+        function d(x, y) {
+            dx = lastX - x;
+            dy = lastY - y;
+
+            updateCharacterPositions();
+        }
+        function d2(x, y) {
+            dy = y - lastY;
+            dx = x - lastX;
+
+            updateCharacterPositions();
+        }
+
+        // Añadir después de las variables globales existentes
+        let showingCoordinates = false;
+
+        // Añadir el evento click para la nueva opción
+        document.getElementById('showCoordinates').addEventListener('click', () => {
+            showingCoordinates = true;
+            startPoint = null;
+            contextMenu.style.display = 'none';
+        });
+
+    </script>
+</body>
+
+</html>

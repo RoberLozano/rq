@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile Map</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://www.gstatic.com/firebasejs/4.7.0/firebase.js"></script>
+    <script src="../js/coor.js"></script>
+    <script src="../js/utils.js"></script>
+    <script src="../js/D.js"></script>
+    <script src="../js/habilidades.js"></script>
+    <script src="../js/inventario.js"></script>
+    <script src="../js/localizaciones.js"></script>
+    <script src="../js/armaduras.js"></script>
+    <script src="../js/armas.js"></script>
+    <script src="../js/rol.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@luncheon/simplify-svg-path@0.2.0"></script>
+    <script type="module"
+        src="https://cdn.jsdelivr.net/npm/@3d-dice/dice-box-threejs@0.0.12/dist/dice-box-threejs.es.min.js"></script>
+</head>
+
+<body>
+    <div id="map-container">
+        <div id="svg-container"></div>
+    </div>
+
+    <div id="arriba">
+        <input type="datetime-local" name="fecha" id="fecha" step="1">
+        <button class="map-button btn" id="bPlanificar" onclick="CharacterController.toggleRoutePlanning()">P</button>
+        <button class="map-button btn" id="bObjetivo" >◎</button>
+        <div id="routeSimulation" hidden>
+            <div class="enlinea">
+                <input type="range" id="routeTime" min="0" max="0" step="1" value="0" class="slider">
+                <span id="routeTimeLabel">0s</span>
+                <span onclick="CharacterController.toggleRoutePlanning() ">&#10003; ✅</span>
+            </div>
+        </div>
+
+    </div>
+
+    <button class="btn" id="togglePanel">☰</button>
+
+    <div id="dice-container"
+        style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 9999; pointer-events: none;">
+    </div>
+    <div id="sidePanel">
+        <div class="controls">
+            <label class="btn" for="fileInput" class="map-button">
+                Mapa
+            </label>
+            <input type="file" id="fileInput" accept="image/svg+xml">
+            <label class="btn" for="characterInput" class="map-button">
+                Add PJ
+            </label>
+            <input type="file" id="characterInput" accept="image/*" multiple style="display: none;">
+            <button class="map-button btn" id="addNpcBtn">Add NPC</button>
+            <button class="map-button btn" id="zoomIn">+</button>
+            <button class="map-button btn" id="zoomOut">-</button>
+            <button class="map-button btn" id="resetView">Reset</button>
+            v 0.017
+        </div>
+        <button class="map-button btn" id="rollDice">Lanzar 1d100</button>
+        <div id="searchBox">
+            <input type="text" id="searchInput" class="input" placeholder="Enter name to zoom">
+            <button class="btn" id="searchButton">Zoom</button>
+        </div>
+        <div class="option-row">
+            <details>
+                <summary>Opciones</summary>
+                <div class="option-row">
+                    <label for="autoConfirmMove" class="option-label">
+                        <input type="checkbox" id="autoConfirmMove">
+                        Auto-aceptar movimientos
+                    </label>
+                </div>
+                <div class="option-row">
+                    <label for="ocultarCamino" class="option-label">
+                        <input type="checkbox" id="ocultarCamino" onchange="CharacterController.togglePath()">
+                        Ocultar camino
+                    </label>
+                </div>
+                <div class="option-row">
+                    <label for="mostrarTarjeta" class="option-label">
+                        <input type="checkbox" id="mostrarTarjeta" >
+                        Mostrar tarjeta al seleccionar
+                    </label>
+                </div>
+                <div class="option-row">
+                    <label for="ctxOpcional" class="option-label">
+                        <input type="checkbox" id="ctxOpcional">
+                        Contextual opcional
+                    </label>
+                </div>
+
+            </details>
+        </div>
+        <div id="layersPanel">
+            <details>
+                <summary>Capas</summary>
+                <div id="layersHeader">
+                    <input type="text" id="layerSearch" placeholder="Buscar capas...">
+                </div>
+                <div id="layersList"></div>
+            </details>
+        </div>
+    </div>
+
+    <!-- Sync button -->
+    <button class="wifi-button" id="syncButton" title="Modo offline">
+        <svg viewBox="0 0 24 24">
+            <path
+                d="M12,21L15.6,16.2C14.6,15.45 13.35,15 12,15C10.65,15 9.4,15.45 8.4,16.2L12,21M12,3C7.95,3 4.21,4.34 1.2,6.6L3,9C5.5,7.12 8.62,6 12,6C15.38,6 18.5,7.12 21,9L22.8,6.6C19.79,4.34 16.05,3 12,3M12,9C9.3,9 6.81,9.89 4.8,11.4L6.6,13.8C8.1,12.67 9.97,12 12,12C14.03,12 15.9,12.67 17.4,13.8L19.2,11.4C17.19,9.89 14.7,9 12,9Z" />
+        </svg>
+    </button>
+
+    <div id="characterContextMenu" class="context-menu">
+        <ul>
+            <li id="attackCharacter">⚔️ Atacar</li>
+            <li class="opcional" hidden id="togglePortrait">Portada</li>
+            <li id="planRoute">Planificar ruta</li>
+            <li id="deleteRoute" class="menu-delete">Eliminar ruta</li>
+            <li id="deleteCharacter" class="menu-delete">Eliminar personaje</li>
+            <li id="rotate" hidden> Rotar <input type="range" min="-180" max="180" value="0" class="slider" id="myAngle"
+                    onchange="CharacterController.rotateCharacters(
+                        CharacterController.activeCharacter,this.value)"> </li>
+            <li id="speedSetting">
+                Velocidad (km/h) <input type="number" min="0.1" step="0.1" value="5" class="number-input"
+                    id="speedValue" onchange="CharacterController.setCharacterSpeed(this.value)">
+            </li>
+            <li class="opcional" hidden id="showStats">Mostrar stats</li>
+            <li class="opcional" hidden id="showCharacterCard">Mostrar tarjeta</li>
+            <li class="opcional" hidden id="inventario" hidden onclick="CharacterController.showStats('inventario')">Inventario</li>
+            <li class="opcional" hidden id="exe">
+                <input type="text" name="" id="exeInput" placeholder="Ejecutar comando...">
+                <button id="exeBtn" onclick="             
+                    let x=eval('CharacterController.getActivePersonaje().'+
+                    document.getElementById('exeInput').value)
+                    console.log(x);
+                ">Ejecutar</button>
+            </li>
+        </ul>
+    </div>
+
+    <!-- Nuevo menú contextual para el mapa -->
+    <div id="mapContextMenu" class="context-menu">
+        <ul>
+            <li id="mapTogglePath">Mostrar camino</li>
+            <li id="mapMeasure">Medir distancia</li>
+            <li id="mapScaleSetting">
+                Escala (m/unidad) <input type="number" min="0.1" step="0.1" value="1" class="number-input"
+                    id="mapScaleValue" onchange="CharacterController.setDistanceScale(this.value)">
+            </li>
+        </ul>
+    </div>
+
+    <!-- Botones de confirmación de movimiento -->
+    <div id="moveConfirmation">
+        <button id="confirmMove" class="confirm-button">OK</button>
+        <button id="confirmTime" class="confirm-button">⌛</button>
+        <button id="cancelMove" class="cancel-button">No</button>
+    </div>
+
+    <!-- Tarjeta de características del personaje -->
+    <div id="characterCard" class="character-card">
+        <div class="card-header">
+            <h3 id="characterName">Nombre del Personaje</h3>
+            <span class="close-card" id="closeCharacterCard">&times;</span>
+        </div>
+        <div class="card-tabs">
+            <button class="tab-button active" data-tab="stats">Características</button>
+            <button class="tab-button" data-tab="weapon">Armas</button>
+            <button class="tab-button" data-tab="body">Cuerpo</button>
+        </div>
+        <div class="card-content">
+            <div id="statsTab" class="tab-content active">
+                <div class="stats-grid">
+                    <!-- Las características se cargarán dinámicamente -->
+                </div>
+            </div>
+            <div id="weaponTab" class="tab-content"> Armas
+                <div id="weaponContainer"></div>
+            </div>
+            <div id="bodyTab" class="tab-content">
+                <div class="body-damage-container">
+                    <img id="cuerpo" src="Body.png" alt="Cuerpo" class="body-image">
+                    <canvas id="canvasCuerpo" class="body-canvas"></canvas>
+                    <div id="bodyDamageList" class="body-damage-list">
+                        <!-- Las zonas dañadas se cargarán dinámicamente -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="infoModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="infoTitle">Información</h3>
+                <span class="close-modal" onclick="infoModal.style.display='none'">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="infoContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- NPC Selection Modal -->
+    <div id="npcModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Selecciona NPC</h3>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="npcSearch" placeholder="Buscar NPCs..." style="flex: 1;">
+                    <input type="number" name="ctd" id="ctd" placeholder="Cantidad" min="1" max="10" value="1">
+                </div>
+                <div id="npcGrid"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load JavaScript modules -->
+    <script src="js/config.js"></script>
+    <script src="js/dom-utils.js"></script>
+    <script src="js/svg-utils.js"></script>
+    <script src="js/map-controller.js"></script>
+    <script src="js/character-controller.js"></script>
+    <script src="js/layer-controller.js"></script>
+    <script src="js/sync-controller.js"></script>
+    <script src="js/main.js"></script>
+    <script type="module" src="js/dice-roller.js"></script>
+</body>
+
+</html>

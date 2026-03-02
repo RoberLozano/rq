@@ -1,0 +1,2147 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/@mdi/font@6.x/css/materialdesignicons.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.css" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
+
+
+
+  <style scoped>
+    /* .grad {
+      background-image: linear-gradient(red, yellow, green);
+    } */
+
+    .green {
+      background-color: green;
+    }
+
+    /* .row td {
+      cursor: pointer;
+    }
+
+    .dataTable {
+      font-size: 12px !important;
+      padding: 0px !important;
+    }
+
+    table.v-table thead th {
+      font-size: 12px;
+    } */
+
+    .padd4 {
+      padding: 4px !important;
+    }
+
+    .padd0 {
+      padding: 0px !important;
+    }
+
+    .row {
+      margin: 0px !important;
+    }
+
+
+    /** para las flechas de inventario*/
+    .v-toolbar__content {
+      height: 56px;
+      padding-left: 4px !important;
+    }
+
+    .v-btn:not(.v-btn--round).v-size--small {
+      padding: 0px !important;
+    }
+
+    /* para juntarlo todo más en las tablas */
+    .v-data-table .v-data-table__wrapper table tbody tr td,
+    .v-data-table .v-data-table__wrapper table tbody tr th,
+    .v-data-table .v-data-table__wrapper table tfoot tr td,
+    .v-data-table .v-data-table__wrapper table tfoot tr th,
+    .v-data-table .v-data-table__wrapper table thead tr td,
+    .v-data-table .v-data-table__wrapper table thead tr th {
+      padding: 2px !important;
+      transition: height .2s cubic-bezier(.4, 0, .6, 1);
+    }
+
+    /** METALES*/
+    .bronce {
+      background: radial-gradient(ellipse farthest-corner at right bottom, #ca9d48 0%, #af7d65 8%, #cd7f32 30%, #8A6E2F 40%, transparent 80%),
+        radial-gradient(ellipse farthest-corner at left top, #FFFFFF 0%, #FFFFAC 8%, #cc6633 25%, #5d4a1f 62.5%, #5d4a1f 100%);
+
+    }
+
+    .gold {
+      background: radial-gradient(ellipse farthest-corner at right bottom, #d49918 0%, #FDB931 8%, #9f7928 30%, #8A6E2F 40%, transparent 80%),
+        radial-gradient(ellipse farthest-corner at left top, #FFFFFF 0%, #FFFFAC 8%, #D1B464 25%, #5d4a1f 62.5%, #5d4a1f 100%);
+
+    }
+
+    input {
+      color: white;
+    }
+
+    .rojo {
+      color: red;
+    }
+
+    .verde {
+      color: green;
+    }
+
+    .azul {
+      color: blue;
+    }
+
+    /* .selec {
+      background: linear-gradient(315deg, #b8d0e0 0%, #a6afb9 54%, #b8d0e0 80%);
+    } */
+
+    .metal {
+      background: linear-gradient(180deg, hsl(0, 0%, 78%) 0%,
+          hsl(0, 0%, 90%) 47%,
+          hsl(0, 0%, 78%) 53%,
+          hsl(0, 0%, 70%)100%);
+      color: #000;
+    }
+
+    .mithril {
+      background: linear-gradient(180deg, hsl(0, 0%, 78%) 0%,
+          hsl(0, 0%, 90%) 30%,
+          hsl(0, 0%, 78%) 53%,
+          hsl(182, 15%, 32%)100%);
+      color: #000;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app">
+    <v-app>
+      <v-main>
+
+        <template>
+          <v-app-bar dark>
+            <v-app-bar-nav-icon @click="drawer = true"></v-app-bar-nav-icon>
+
+            <v-toolbar-title>{{nombrePersonaje||'Roberquest'}}</v-toolbar-title>
+            <v-spacer></v-spacer>
+
+            <v-btn id="lupa" icon @click="$vuetify.goTo('#editor')">
+              <v-icon>mdi-magnify</v-icon>
+            </v-btn>
+
+            <v-btn id="saveOnline" icon @click="pj.save()">
+              <v-icon>mdi-upload</v-icon>
+            </v-btn>
+
+            <v-btn id="loadOnline" icon @click="act()">
+              <v-icon>mdi-download</v-icon>
+            </v-btn>
+
+          </v-app-bar>
+
+          <v-navigation-drawer v-model="drawer" absolute temporary>
+            <v-list nav>
+              <v-list-item-group v-model="group" active-class="red--text text--accent-4">
+                <v-list-item @click="tab='Personaje'">
+                  <v-list-item-icon>
+                    <v-icon>mdi-home</v-icon>
+                  </v-list-item-icon>
+                  <v-list-item-title>Personaje</v-list-item-title>
+                </v-list-item>
+
+                <v-list-item>
+                  <v-list-item-icon>
+                    <v-icon>mdi-account</v-icon> <v-icon>mdi-wifi</v-icon>
+                  </v-list-item-icon>
+
+                  <v-combobox v-model="nombrePersonajeOnline" :items="[...personajesOnline]" label="Personaje"
+                    @change="cargarOnline(nombrePersonajeOnline);pj.actTodosBonHab();p=pj; contenedor=pj.inventario">
+                  </v-combobox>
+                </v-list-item>
+
+
+
+                <v-list-item>
+                  <v-list-item-icon>
+                    <v-icon>mdi-account</v-icon>
+                  </v-list-item-icon>
+
+                  <v-select v-model="nombrePersonaje" :items="ls('personajes')" label="Personaje"
+                    @change="pj= Clase.convertir(ls(nombrePersonaje));pj.actTodosBonHab();p=pj; contenedor=pj.inventario">
+                  </v-select>
+                </v-list-item>
+
+                <v-list-item @click="window.open('excel.html', '_blank')">
+                  <v-list-item-icon>
+                    <v-icon>mdi-file-excel-box</v-icon>
+                  </v-list-item-icon>
+                  <v-list-item-title>Excel</v-list-item-title>
+                </v-list-item>
+
+                <v-list-item @click="window.open('dados.html', '_blank')">
+                  <v-list-item-icon>
+                    <v-icon>mdi-dice-6</v-icon>
+                  </v-list-item-icon>
+                  <v-list-item-title>Dados</v-list-item-title>
+                </v-list-item>
+
+                <v-list-item id="dictar" @click="hablar(true)">
+                  <v-list-item-icon>
+                    <v-icon id="mic">mdi-microphone</v-icon>
+                  </v-list-item-icon>
+                  <v-list-item-title>Dictar comando</v-list-item-title>
+                </v-list-item>
+
+
+
+              </v-list-item-group>
+            </v-list>
+          </v-navigation-drawer>
+
+          <template>
+            <v-card>
+              <v-tabs v-model="tab" color="red accent-4" show-arrows>
+                <v-tab href="#Personaje">Personaje</v-tab>
+                <v-tab href="#Habilidades">Habilidades</v-tab>
+                <v-tab href="#Inventario">Inventario</v-tab>
+                <v-tab href="#Combate">Combate</v-tab>
+                <v-tab href="#Magia">Magia</v-tab>
+
+                <!-- Personaje -->
+                <v-tab-item value='Personaje'>
+                  <v-container fluid>
+                    <!-- <h2>Características</h2><br> -->
+                    <v-tooltip right color="black" :disabled="darTooltip().length<1">
+                      <template v-slot:activator="{ on, attrs }">
+                        <span v-bind="attrs" v-on="on">
+                          <h2 id="caracteristicas" @click="act()">{{pj.nombre}} <span
+                              style="color:red;font-size: small;"> {{pj.clase}}
+                            </span> <b>{{pj.sexo}}</b>
+                          </h2> <br>
+                        </span>
+                      </template>
+                      <!-- <span>{{pj.getMod(c)}} <b>{{pj.getModTotal(c)}}</b></span> -->
+                      <span v-html="darTooltip()"></span>
+                    </v-tooltip>
+                    <v-row>
+                      <table>
+                        <tr hidden>
+                          <td>_FUE</td>
+                          <td><input type="number" v-model="p._FUE"></td>
+                        </tr>
+
+                        <tr v-for="(c,index) in CP">
+                          <td class="padd4">{{ c }}</td>
+                          <td class="padd4"><input :style="{ 'color': 'white','width': '3em'}" type="number"
+                              v-model.number="pj[c]"></td>
+
+                          <td class="padd4">
+
+                            <v-tooltip right color="black" :disabled="darTooltip(c).length<1">
+                              <template v-slot:activator="{ on, attrs }">
+                                <span :style="{ 'color': (pj[c]>pj.getCar(c) ? 'red':
+                                  ( pj[c]<pj.getCar(c) ? 'green' : 'inherit')
+                                    ),'width': '2.5em', 'float': 'right'}" v-bind="attrs" v-on="on">
+                                  {{pj.getCar(c)}}
+                                </span>
+                              </template>
+                              <!-- <span>{{pj.getMod(c)}} <b>{{pj.getModTotal(c)}}</b></span> -->
+                              <span v-html="darTooltip(c)"></span>
+                            </v-tooltip>
+
+
+                          </td>
+
+
+                          <td class="padd4"> </td>
+                          <td class="padd4">{{TipoHabilidades[index]}}</td>
+                          <td class="padd4">
+                            <v-tooltip right color="black" :disabled="darTooltip(TipoHabilidades[index]).length<1">
+                              <template v-slot:activator="{ on, attrs }">
+                                <span :style="{ 'color': (pj[TipoHabilidades[index]]>pj.getCar(TipoHabilidades[index]) ? 'red':
+                                ( pj[TipoHabilidades[index]]<pj.getCar(TipoHabilidades[index]) ? 'green' : 'inherit')
+                                  ),'width': '2.5em', 'float': 'right'}" v-bind="attrs" v-on="on">
+                                  {{pj.getCar(TipoHabilidades[index])}}
+                                  <!-- <input type="number" v-model="pj.getCar(TipoHabilidades[index])"
+                                :style="{ 'color': (pj.bonificacion[TipoHabilidades[index]]>0 ? 'green' : 'red') ,'width': '2.5em'}"> -->
+                                </span>
+                              </template>
+                              <!-- <span>{{pj.getMod(c)}} <b>{{pj.getModTotal(c)}}</b></span> -->
+                              <span v-html="darTooltip(TipoHabilidades[index])"></span>
+                            </v-tooltip>
+
+                          </td>
+                        </tr>
+
+                        <tr> </tr>
+                      </table>
+                    </v-row>
+                    <v-row>
+                      <v-col sm="1">
+                        <v-text-field v-model.number="pj.pg" type="number" label="PG" size="1"
+                          max="pj.getMaxPuntos('PG')">{{pj.pg}}</v-text-field>
+                      </v-col>
+                      <v-col sm="1">
+                        <v-text-field v-model.number="pj.pf" type="number" label="PF" size="1"
+                          max="pj.getMaxPuntos('PF')">{{pj.pf}}</v-text-field>
+                      </v-col>
+                      <v-col sm="1">
+                        <v-text-field v-model.number="pj.pm" type="number" label="PM" size="1"
+                          max="pj.getMaxPuntos('PM')">{{pj.pm}}</v-text-field>
+                      </v-col>
+                    </v-row>
+                  </v-container>
+                </v-tab-item>
+
+                <!-- Tab Habilidades -->
+                <v-tab-item value="Habilidades">
+                  <v-container fluid>
+                    <v-row>
+                      <!-- tabla habilidades -->
+                      <v-row justify="center">
+                        <v-expansion-panels v-model="panelHabilidades" accordion dark>
+                          <v-expansion-panel>
+                            <v-expansion-panel-header>Habilidades
+
+                            </v-expansion-panel-header>
+                            <v-expansion-panel-content>
+                              <template>
+
+                                <!-- fixed-header
+                                height="300px" -->
+                                <v-data-table id="tablaHabilidades" dense dark hide-default-footer :headers="colHabSel"
+                                  :items="pj.getHabilidades(fh)" multi-sort show-group-by :items-per-page="-1"
+                                  class="elevation-1" show-expand :single-expand="singleExpand"
+                                  :expanded.sync="expanded" :search="search" item-key="nombre" :mobile-breakpoint=200>
+
+                                  <template v-slot:item.nombre="{item}">
+                                    <!-- <p :style="{color: getColor(item.v)}">{{item.v}}</p> -->
+                                    <!-- <td :style="{color: item.v<item.total()?'green':(item.v==item.total()?'inherit':'red')}"> -->
+
+                                    <v-tooltip right color="black">
+                                      <template v-slot:activator="{ on, attrs }">
+                                        <td @click="clickHabilidad(item)">
+                                          <span v-bind="attrs" v-on="on">
+                                            {{item.nombre}}
+                                            <!-- <input type="number" v-model="pj.getCar(TipoHabilidades[index])"
+                                          :style="{ 'color': (pj.bonificacion[TipoHabilidades[index]]>0 ? 'green' : 'red') ,'width': '2.5em'}"> -->
+                                          </span>
+                                        </td>
+                                      </template>
+                                      <!-- <span>{{pj.getMod(c)}} <b>{{pj.getModTotal(c)}}</b></span> -->
+                                      <span>{{item.total()}}% <b class="verde">{{item.especial}} </b> <b
+                                          class="rojo">{{item.critico}} </b> <b :style="{color:'purple'}">{{item.pifia}}
+                                        </b></span>
+                                    </v-tooltip>
+                                    <!-- <input type="number" v-model.number="item.total()"
+                                        :style="{color: item.total()>item.v?'green':'red'}"
+                                        @click="darTooltip(item.nombre,true)"> -->
+
+                                  </template>
+
+
+
+                                  <template v-slot:item.xp="props">
+                                    <v-edit-dialog :return-value.sync="props.item.xp" large persistent>
+
+                                      <td :style="{color: props.item.xp>4?'red':'green'}">{{props.item.xp}}</td>
+                                      <template v-slot:input>
+                                        <div class="mt-4 text-h6">
+                                          Cambiar XP
+                                        </div>
+                                        <input type="number" v-model.number="props.item.xp"
+                                          :style="{color: props.item.xp>4?'green':'red'}">
+                                      </template>
+                                    </v-edit-dialog>
+                                  </template>
+
+                                  <template v-slot:item.t="{item}">
+                                    <!-- <p :style="{color: getColor(item.v)}">{{item.v}}</p> -->
+                                    <!-- <td :style="{color: item.v<item.total()?'green':(item.v==item.total()?'inherit':'red')}"> -->
+
+                                    <v-tooltip right color="red" :disabled="darTooltip(item.nombre,true).length<1">
+                                      <template v-slot:activator="{ on, attrs }">
+                                        <td>
+                                          <span :style="{ 'color': item.total()<item.v ? 'red':
+                                         (item.total()>item.v ?  'green' : 'inherit')
+                                            ,'width': '2.5em', 'float': 'right'}" v-bind="attrs" v-on="on">
+                                            {{item.total()}}
+                                            <!-- <input type="number" v-model="pj.getCar(TipoHabilidades[index])"
+                                          :style="{ 'color': (pj.bonificacion[TipoHabilidades[index]]>0 ? 'green' : 'red') ,'width': '2.5em'}"> -->
+                                          </span>
+                                        </td>
+                                      </template>
+                                      <!-- <span>{{pj.getMod(c)}} <b>{{pj.getModTotal(c)}}</b></span> -->
+                                      <span v-html="darTooltip(item.nombre,true)"></span>
+                                    </v-tooltip>
+                                    <!-- <input type="number" v-model.number="item.total()"
+                                        :style="{color: item.total()>item.v?'green':'red'}"
+                                        @click="darTooltip(item.nombre,true)"> -->
+
+                                  </template>
+
+
+
+
+
+                                  <template v-slot:item.sub="{ item }">
+                                    <!-- <p :style="{color: getColor(item.v)}">{{item.v}}</p> -->
+                                    <td v-if="item.subible()<100"
+                                      :style="{color: item.subible()>=100?'red':(item.subible()>50?'inherit':'green')}">
+                                      <b @click="clickSubir(item)">{{item.subible()}}
+                                        {{item.subible()>50?'&uarr;':'&#x21C8;'}}</b>
+                                    </td>
+                                  </template>
+
+                                  <template v-slot:top>
+                                    <v-toolbar flat>
+                                      <v-text-field v-model="search" clearable append-icon="mdi-magnify" label="Buscar"
+                                        single-line hide-details>
+                                      </v-text-field>
+                                      <br>
+                                      <div class="d-none d-md-block">
+                                        <v-switch v-if="0 === 1" v-model="singleExpand" label="Single expand"
+                                          class="mt-2"></v-switch>
+                                        <v-chip class="ma-2" @click="fh=filtroTecnica" color="primary">
+                                          <v-icon>mdi-sword-cross</v-icon>
+                                          Técnicas
+                                        </v-chip>
+
+                                        <v-chip class="ma-2" color="secondary" small @click="fh=filtroHechizo">
+                                          Hechizos
+                                        </v-chip>
+
+                                        <v-chip class="ma-2" color="secondary" small @click="fh=filtroSubir">
+                                          <v-icon>mdi-chevron-double-up</v-icon>
+                                        </v-chip>
+
+                                        <v-chip class="ma-2" color="red" text-color="white"
+                                          @click="fh=filtroHabilidadMarcial">
+                                          <v-icon>mdi-sword</v-icon>
+                                          Combate
+                                        </v-chip>
+
+                                        <v-chip class="ma-2" color="green" text-color="white" @click="fh=null">
+                                          Todo
+                                        </v-chip>
+                                      </div>
+
+                                    </v-toolbar>
+                                  </template>
+
+
+                                  <template v-slot:expanded-item="{ headers, item }">
+                                    <td :colspan="headers.length">
+                                      E:<b class="verde">{{item.e}}</b> C:<b class="rojo">{{item.c}}</b> {{item.clase}}
+                                      de tipo {{item.tipo}} con xp:{{item.xp}} subido por ultima vez
+                                      {{item.fecha}}
+                                    </td>
+                                  </template>
+
+                                </v-data-table>
+                              </template>
+                            </v-expansion-panel-content>
+                          </v-expansion-panel>
+                        </v-expansion-panels>
+                      </v-row>
+                    </v-row>
+
+                    <v-row justify="center">
+                      <v-expansion-panels accordion dark>
+                        <v-expansion-panel>
+                          <v-expansion-panel-header>Habilidades
+                          </v-expansion-panel-header>
+                          <v-expansion-panel-content>
+                            <template>
+
+                              <v-autocomplete v-model="colHabSel" :items="headers" deletable-chips multiple small-chips
+                                return-object>
+                              </v-autocomplete>
+
+
+                              <v-data-table id="HabSeleccionadas" dense dark hide-default-footer multi-sort
+                                :headers="colHabSel" :items="pj.getHabilidades()" class="elevation-1"
+                                :items-per-page="-1">
+                              </v-data-table>
+
+                            </template>
+                          </v-expansion-panel-content>
+                        </v-expansion-panel>
+                      </v-expansion-panels>
+                    </v-row>
+
+
+                  </v-container>
+
+                </v-tab-item>
+
+                <!-- Tab Inventario -->
+                <v-tab-item id='Inventario' value='Inventario'>
+                  <v-container fluid>
+
+                    <!-- tabla inventario  sin: item-key="nombre"  se necesita para el expandable-->
+                    <v-row justify="center">
+                      <v-expansion-panels v-model="panelInventario" accordion dark>
+                        <v-expansion-panel>
+                          <v-expansion-panel-header>Inventario {{roundTo(3,contenedor.pesa)}}kg
+                          </v-expansion-panel-header>
+                          <v-expansion-panel-content>
+                            <template>
+                              <v-data-table dense dark hide-default-footer :headers="headerInventario"
+                                :items="contenedor.objetos" :custom-sort="subirSort" show-group-by :items-per-page="-1"
+                                class="elevation-1" v-model="selected" show-select :search="search" item-key="id"
+                                :mobile-breakpoint=200>
+
+                                <template v-slot:item.nombre="{ item }">
+                                  <v-edit-dialog :return-value="item.nombre">
+                                    {{ item.nombre }}
+
+                                    <div style="display: inline" v-if="item.clase == 'Contenedor'" @click="abrir(item)">
+                                      <v-icon v-if="item.clase == 'Contenedor'" small @click="abrir(item)">
+                                        mdi-delete
+                                      </v-icon>
+                                      <v-badge :content="item.carga+'/'+item.max + 'kg'"
+                                        :color="interColor(item.carga,item.max,true)" inline>
+                                        <!-- {{item.carga}}/{{item.max}} -->
+                                      </v-badge>
+                                    </div>
+
+                                    <div style="display: inline" v-else-if="item.clase == 'Gema'">
+                                      <v-icon small @click="item.pm=item.capacidad"
+                                        :color="interpolarColor(item.pm/item.capacidad*100)">
+                                        mdi-diamond
+                                      </v-icon>
+                                      <v-badge :content="item.pm" color="negro" inline>
+                                        <!-- {{item.carga}}/{{item.max}} -->
+                                      </v-badge>
+                                    </div>
+
+                                    <div style="display: inline" v-if="item.equipado">
+                                      <v-icon small @click="item.desequipar(pj)">
+                                        mdi-bag-personal
+                                      </v-icon>
+                                    </div>
+
+                                    <div style="display: inline" v-else-if="item.numero()>0">
+                                      <v-tooltip right color="red" :disabled="item.numero()==0">
+                                        <template v-slot:activator="{ on, attrs }">
+
+                                          <v-icon v-bind="attrs" v-on="on" color="blue">
+                                            mdi-auto-fix
+                                            <!-- <input type="number" v-model="pj.getCar(TipoHabilidades[index])"
+                                            :style="{ 'color': (pj.bonificacion[TipoHabilidades[index]]>0 ? 'green' : 'red') ,'width': '2.5em'}"> -->
+                                          </v-icon>
+
+                                        </template>
+                                        <!-- <span>{{pj.getMod(c)}} <b>{{pj.getModTotal(c)}}</b></span> -->
+                                        <span v-html="item.numero(0)"></span>
+                                      </v-tooltip>
+
+
+                                    </div>
+
+                                    <div style="display: inline" v-if="item.nombre == 'mo'">
+                                      <v-badge :content="item.ctd" color="gold" inline>
+                                        <!-- {{item.carga}}/{{item.max}} -->
+                                      </v-badge>
+                                    </div>
+
+                                    <div style="display: inline" v-if="item.nombre == 'mp'">
+                                      <v-badge :content="item.ctd" color="metal" inline>
+                                        <!-- {{item.carga}}/{{item.max}} -->
+                                      </v-badge>
+                                    </div>
+
+                                    <div style="display: inline" v-if="item.nombre == 'mm'">
+                                      <v-badge :content="item.ctd" color="mithril" inline>
+                                        <!-- {{item.carga}}/{{item.max}} -->
+                                      </v-badge>
+                                    </div>
+
+                                    <div style="display: inline" v-if="item.nombre == 'mb'">
+                                      <v-badge :content="item.ctd" color="bronce" inline>
+                                        <!-- {{item.carga}}/{{item.max}} -->
+                                      </v-badge>
+                                    </div>
+
+
+                                    <template v-slot:input>
+                                      <input v-model.lazy="item.nombre" :style="{color: 'white'}" />
+                                    </template>
+
+                                  </v-edit-dialog>
+
+                                </template>
+
+                                <template v-slot:item.ctd="props">
+                                  <v-edit-dialog :return-value.sync="props.item.ctd" large persistent>
+
+                                    <td>{{props.item.ctd}}</td>
+                                    <template v-slot:input>
+
+
+                                      <div class="mt-4 text-h6">
+                                        Cambiar Cantidad
+                                      </div>
+
+                                      <v-text-field v-model.number="props.item.ctd" label="ctd" class="mt-0 pt-0"
+                                        hide-details single-line type="number" counter autofocus>
+                                      </v-text-field>
+
+                                      <v-slider v-model="sliderSeparar" hint="Objetos a separar" :max="props.item.ctd"
+                                        min="0" thumb-label>
+                                      </v-slider>
+                                      <v-btn icon color="green"
+                                        @click="contenedor.add(props.item.separar(sliderSeparar), contenedor.objetos.indexOf(props.item)+1); sliderSeparar=0">
+                                        <v-icon>mdi-check-outline</v-icon>
+                                      </v-btn>
+
+
+                                      <!-- <input type="number" v-model.number="props.item.ctd" :style="{color: props.item.ctd>4?'green':'red'}"> -->
+                                    </template>
+                                  </v-edit-dialog>
+                                </template>
+
+                                <template v-slot:item.clase="{ item }">
+                                  <!-- <p :style="{color: getColor(item.v)}">{{item.v}}</p> -->
+                                  <td>
+                                    <v-icon v-if="item.clase == 'Contenedor'" small @click="abrir(item)">
+                                      mdi-delete
+                                    </v-icon>
+                                    <v-icon v-else-if="item.clase == 'Objeto'" small>
+                                      mdi-checkbox-blank-outline
+                                    </v-icon>
+                                    <v-icon v-else-if="item.clase == 'Objetos'" small>
+                                      mdi-checkbox-multiple-blank-outline mdi-buffer
+                                    </v-icon>
+
+                                    <v-icon v-else-if="item.clase == 'Pociones'" small @click="item.tomar()">
+                                      mdi-flask
+                                    </v-icon>
+
+                                    <v-icon v-else-if="item instanceof ArmaDistancia" small>
+                                      mdi-bullseye
+                                    </v-icon>
+
+                                    <v-icon v-else-if="item instanceof Arma" small>
+                                      mdi-sword
+                                    </v-icon>
+
+                                    <v-icon v-else-if="item instanceof Municion" small>
+                                      mdi-arrow-projectile-multiple
+                                    </v-icon>
+
+                                    <v-icon v-else-if="item.clase == 'Gema'" small :style="shadow(item.pm)"
+                                      :color="redGreenColor(item.pm/item.capacidad*100)">{{item.pm}}
+                                      mdi-diamond
+                                    </v-icon>
+
+                                    <img v-else-if="item.clase == 'Arma'" small src="img/sword.svg" height="16px"></img>
+
+                                    <span v-else>{{item.clase}}</spam>
+                                  </td>
+                                </template>
+
+                                <template v-slot:item.peso="{ item }">
+                                  <!-- <p :style="{color: getColor(item.v)}">{{item.v}}</p> -->
+                                  <td>{{roundTo(3,item.peso)}}</td>
+                                </template>
+
+
+                                <!-- <template v-slot:item.valor="{ item }">
+                                  
+                                            <td>
+                                              <b>{{item.valor}}</b>
+                                            </td>
+                                          </template> -->
+
+                                <template v-slot:top>
+                                  <v-toolbar flat>
+                                    <v-icon v-if="abiertos.length>0" @click="contenedor=pj.inventario;abiertos=[]">
+                                      mdi-reply-all
+                                    </v-icon>
+                                    <v-icon v-if="abiertos.length>0" @click="anterior">mdi-reply</v-icon>
+                                    <li v-for="(item, index) in abiertos">
+                                      <!-- <a>{{ index }} - {{ item.nombre }}</a> -->
+                                      <v-btn small text @click="abrir(item,index)">{{item.nombre}}\</v-btn>
+                                    </li>
+                                    <v-btn small text v-if=contenedor>{{contenedor.nombre}}</v-btn>
+                                    <!-- <v-spacer></v-spacer>
+                                    <div v-if=contenedor>{{contenedor.nombre}}</div> -->
+                                    <v-spacer></v-spacer>
+
+
+                                    <v-icon @click="verBuscar=!verBuscar">mdi-magnify</v-icon>
+                                    <v-switch v-if="0 === 1" v-model="singleExpand" label="Single expand" class="mt-2">
+                                    </v-switch>
+                                  </v-toolbar>
+                                  <v-text-field v-if="verBuscar" v-model="search" append-icon="mdi-magnify"
+                                    label="Buscar" single-line hide-details clearable></v-text-field>
+                                </template>
+
+                                <!-- footer -->
+                                <template v-if="selected.length>0" v-slot:footer>
+                                  <div>
+                                    {{selected.length}} objetos seleccionados,
+                                    {{selected.reduce((a, b) => a + (b.pesa || 0), 0)}} kgs,
+                                    {{selected.reduce((a, b) => a + (b.valor || 0), 0)}} mp
+                                    <v-btn small @click="sheet = !sheet">Mover</v-btn>
+                                    <v-btn v-if="selected.length==1" small @click="editar(selected[0])">Editar</v-btn>
+                                    <v-btn small @click="selected.forEach(i => {contenedor.sacar(i)});selected=[];">
+                                      Tirar
+                                    </v-btn>
+                                    <!-- <v-btn @click="moverItem(contenedor.objetos)">Subir
+                                    </v-btn> -->
+                                    <v-btn small @click="arribaItems()">
+                                      <v-icon>mdi-format-vertical-align-top</v-icon>
+                                    </v-btn>
+                                    <v-btn small
+                                      @click="selected.sort((a, b) => contenedor.objetos.indexOf(a)-contenedor.objetos.indexOf(b)).forEach(element => moverItems(contenedor.objetos,element));">
+                                      <v-icon>mdi-arrow-up-bold</v-icon>
+                                    </v-btn>
+                                    <!-- <v-btn @click="contenedor.objetos.splice(contenedor.objetos.indexOf(selected[0]) -1, 0,
+                                    contenedor.objetos.splice(contenedor.objetos.indexOf(selected[0]), 1)[0])">Subir
+                                    </v-btn> -->
+                                    <!-- <v-btn @click="moverItem(contenedor.objetos,1)">Bajar
+                                   </v-btn> -->
+                                    <!-- <v-btn @click="selected.forEach(ob=>{moverItem2(contenedor.objetos,ob,1)}">Bajar2
+                                  </v-btn> -->
+
+                                    <v-btn small @click="abajoItems()">
+                                      <v-icon>mdi-format-vertical-align-bottom</v-icon>
+                                    </v-btn>
+
+                                    <v-btn small
+                                      @click="selected.sort((a, b) => contenedor.objetos.indexOf(a)-contenedor.objetos.indexOf(b)).reverse().forEach(element => moverItems(contenedor.objetos,element, 1));">
+                                      <v-icon>mdi-arrow-down-bold</v-icon>
+                                    </v-btn>
+
+
+                                    <!-- <v-btn @click="contenedor.objetos.splice(contenedor.objetos.indexOf(selected[0]) + 1, 0,
+                                     contenedor.objetos.splice(contenedor.objetos.indexOf(selected[0]), 1)[0])">Bajar
+                                    </v-btn> -->
+                                    <v-btn small v-if="selected.length>1&&unir(selected)"
+                                      @click="contenedor.add(unir(selected),contenedor.objetos.indexOf(selected[0]));
+                                                                selected.forEach(i => {contenedor.sacar(i)});selected=[];">Unir</v-btn>
+
+                                  </div>
+                                </template>
+
+                                <template v-slot:expanded-item="{ headerInventario, item }">
+                                  <td :colspan="headers.length">
+                                    {{item.clase}} {{item.nombre}} pesa {{item.pesa}} y vale {{item.valor}}
+                                  </td>
+                                </template>
+
+                              </v-data-table>
+                            </template>
+                          </v-expansion-panel-content>
+                        </v-expansion-panel>
+                      </v-expansion-panels>
+                    </v-row>
+
+                    <!-- tabla inventario  sin: item-key="nombre"  se necesita para el expandable-->
+                    <v-row justify="center">
+                      <v-expansion-panels accordion dark>
+                        <v-expansion-panel active>
+                          <v-expansion-panel-header>Inventario ({{(contenedor.pesa).toFixed(2)}}kg)
+                          </v-expansion-panel-header>
+                          <v-expansion-panel-content>
+                            <template>
+
+                              <v-autocomplete v-model="value" :items="headerInventario" deletable-chips multiple
+                                small-chips return-object>
+                              </v-autocomplete>
+
+
+                              <v-data-table id="invMover" dense dark hide-default-footer multi-sort
+                                :headers="selectedHeaders" :items="contenedor.objetos" class="elevation-1"
+                                :items-per-page="-1">
+                              </v-data-table>
+
+                            </template>
+                          </v-expansion-panel-content>
+                        </v-expansion-panel>
+                      </v-expansion-panels>
+                    </v-row>
+
+
+                  </v-container>
+                </v-tab-item>
+
+                <!-- Tab Combate -->
+                <v-tab-item value='Combate'>
+                  <v-container fluid>
+                    Técnicas
+                    <v-autocomplete :items="pj.getClaseHabilidad(Tecnica)" deletable-chips multiple small-chips
+                      return-object item-text="nombre">
+
+                      <template v-slot:item="{item}">
+                        <v-list-item-avatar color="green" class="text-h6 font-weight-light white--text">
+                          {{ item.pf }}
+                        </v-list-item-avatar>
+                        {{item.nombre}} <v-spacer></v-spacer> <span :style="{color: getColor(item.v)}">
+                          {{item.v}}%</span>
+                      </template>
+                    </v-autocomplete>
+
+                    Habilidades Marciales
+                    <v-autocomplete :items="pj.getClaseHabilidad(HabilidadMarcial)" deletable-chips multiple small-chips
+                      return-object item-text="nombre">
+
+                      <template v-slot:item="{item}">
+                        {{item.nombre}} <v-spacer></v-spacer> <span :style="{color: getColor(item.v)}">
+                          {{item.v}}%</span>
+                      </template>
+                    </v-autocomplete>
+
+                    <!-- Habilidad -->
+                    <v-row id="rowHabilidadFiltro">
+                      <v-text-field v-if="ifHabilidadFiltro" v-model="filtro" append-icon="mdi-magnify" label="Buscar"
+                        single-line hide-details clearable>
+                      </v-text-field>
+                      <!-- <v-icon @click="ifHabilidadFiltro=!ifHabilidadFiltro">mdi-filter</v-icon> -->
+                      <v-btn icon @click="ifHabilidadFiltro=!ifHabilidadFiltro">
+                        <v-icon v-if="ifHabilidadFiltro" :color="filtro?.length>0 ?'green':'red'">mdi-filter-remove
+                        </v-icon>
+                        <v-icon v-else :color="filtro?.length>0 ?'green':'red'">mdi-filter</v-icon>
+                      </v-btn>
+                    </v-row>
+
+
+                    <v-layout row wrap class="pa-3">
+                      <v-row id="rowHabilidadArma">
+                        <v-autocomplete v-model="habilidadFiltro"
+                          :items="pj.getHabilidades(parseStringToFunction(filtro))" return-object item-text="nombre">
+
+                          <template v-slot:item="{item}">
+                            {{item.nombre}} <v-spacer></v-spacer> <span :style="{color: getColor(item.v)}">
+                              {{item.v}}%</span>
+                          </template>
+                        </v-autocomplete>
+
+
+                        <div class="d-inline-flex">
+                          <v-text-field v-model="habilidadFiltro.v" label="%" size="1">
+                          </v-text-field>
+
+                          <!-- <input v-model="dado" :label="TipoTirada.tirada[habilidadFiltro.tirada(dado)]" type="number"
+                            size="1"
+                            :style="{ 'color': TipoTirada.color(habilidadFiltro.tirada(dado)) ,'width': '2.5em'}"
+                            @input="iuDaño.dado=arma.daño.tirar(habilidadFiltro.tirada(dado))">
+
+                          </input> -->
+
+                          <v-text-field v-model="dado" :label="TipoTirada.tirada[habilidadFiltro.tirada(dado)]" size="2"
+                            :color="TipoTirada.color(habilidadFiltro.tirada(dado))"
+                            :background-color="TipoTirada.color(habilidadFiltro.tirada(dado)-1)"
+                            @click="dado=d100.tirar(); iuDaño.dado=arma.daño.tirar(habilidadFiltro.tirada(dado))"
+                            @input="iuDaño.dado=arma.daño.tirar(habilidadFiltro.tirada(dado))">
+
+                            <v-btn icon color="green" slot="append-outer"
+                              @click="habilidadFiltro.xpTipoTirada(habilidadFiltro.tirada(dado),dado)">
+                              <v-icon>mdi-check-outline</v-icon>
+                            </v-btn>
+
+                          </v-text-field>
+
+
+                          <!-- <v-text-field v-model="TipoTirada.tirada[habilidadFiltro.tirada(dado)]" label="Tirada" size="1"  >
+                          </v-text-field> -->
+
+
+
+                        </div>
+
+                      </v-row>
+
+                      <v-row id="rowArma">
+                        <v-autocomplete size="6" v-model="arma" label="Arma"
+                          :items="pj.inventario.darClaseRecursiva(Arma)" return-object item-text="nombre">
+                          <template v-slot:item="{item}">
+
+                            <v-list-item-avatar color="indigo" class="text-h6 font-weight-light white--text">
+                              {{ item.peso }}
+                            </v-list-item-avatar>
+                            <v-list-item-content>
+                              <v-list-item-title v-html="item.nombre"></v-list-item-title>
+                              <v-list-item-subtitle v-html="item.daño"></v-list-item-subtitle>
+                            </v-list-item-content>
+
+
+                            <v-list-item-action>
+                              <v-list-item-action-text v-text="item.peso+'kg'"></v-list-item-action-text>
+                            </v-list-item-action>
+
+                          </template>
+                        </v-autocomplete>
+
+                        <!-- <v-text-field v-model="arma.daños" label="%" size="1">
+                      </v-text-field> -->
+
+                        <!-- <v-select size="1" v-model="daño" :items="arma.daños" label="Daño" return-object
+                        @change="arma.daño=daño.dado; console.log(arma.daño.dado)">
+                      </v-select> -->
+
+                        <div class="d-inline-flex">
+                          <v-autocomplete size="2" v-model="daño" :items="arma.daños" label="Daño" return-object
+                            @change="arma.daño=daño.dado; console.log(arma.daño.dado)">
+                          </v-autocomplete>
+                          <v-text-field v-model="iuDaño.dado" :label="daño" size="1" :color="getColor(dado)"
+                            append-icon="mdi-dice-3" @click="iuDaño.dado=arma.daño.tirar()"
+                            @click:append="iuDaño.dado=arma.daño.tirar()">
+
+                            <v-btn slot="append-outer" icon color="green"
+                              @click="habilidadFiltro.xpTipoTirada(habilidadFiltro.tirada(dado),dado)">
+                              <v-icon>mdi-check-outline</v-icon>
+                            </v-btn>
+
+                          </v-text-field>
+
+                        </div>
+
+                      </v-row>
+                    </v-layout>
+
+
+                    <!-- ARMA DISTANCIA -->
+                    <v-row justify="center">
+                      <v-expansion-panels accordion dark>
+                        <v-expansion-panel>
+                          <v-expansion-panel-header>Armas a distancia
+                          </v-expansion-panel-header>
+                          <v-expansion-panel-content>
+                            <template>
+
+                              <v-layout row wrap class="pa-3">
+                                <!-- Fila habilidad arma -->
+                                <v-row>
+                                  <div class="d-inline-flex">
+                                    <v-autocomplete v-model="habilidadDistancia"
+                                      :items="pj.getHabilidades(obj => obj instanceof HabilidadDistancia)" return-object
+                                      item-text="nombre">
+
+                                      <template v-slot:item="{item}">
+                                        {{item.nombre}} <v-spacer></v-spacer> <span :style="{color: getColor(item.v)}">
+                                          {{item.v}}%</span>
+                                      </template>
+                                    </v-autocomplete>
+
+
+
+                                    <v-text-field v-model="habilidadDistancia.v" label="%" size="1">
+                                    </v-text-field>
+
+                                    <!-- <input v-model="dado" :label="TipoTirada.tirada[habilidadFiltro.tirada(dado)]"
+                                      type="number" size="1"
+                                      :style="{ 'color': TipoTirada.color(habilidadFiltro.tirada(dado)) ,'width': '2.5em'}"
+                                      @input="iuDaño.dado=arma.daño.tirar(habilidadFiltro.tirada(dado))">
+
+                                    </input> -->
+
+                                    <v-text-field v-model.number="dado"
+                                      :label="TipoTirada.tirada[habilidadDistancia.tirada(dado)]" size="2"
+                                      :color="TipoTirada.color(habilidadDistancia.tirada(dado))"
+                                      :background-color="TipoTirada.color(habilidadDistancia.tirada(dado)-1)"
+                                      @click="dado=d100.tirar(); iuDaño.dado=armaDistancia.daño.tirar(habilidadDistancia.tirada(dado))"
+                                      @input="iuDaño.dado=armaDistancia.daño.tirar(habilidadDistancia.tirada(dado))">
+
+                                    </v-text-field>
+
+
+                                    <!-- <v-text-field v-model="TipoTirada.tirada[habilidadFiltro.tirada(dado)]" label="Tirada" size="1"  >
+                                      </v-text-field> -->
+                                    <v-btn icon color="green"
+                                      @click="habilidadDistancia.xpTipoTirada(habilidadDistancia.tirada(dado),dado)">
+                                      <v-icon>mdi-check-outline</v-icon>
+                                    </v-btn>
+                                  </div>
+
+                                  <div class="d-inline-flex">
+                                    <!-- distancia en metros -->
+
+                                    <v-text-field v-model.number="habilidadDistancia.distancia" label="m" size="1"
+                                      :color="getColor(dado)"></v-text-field>
+                                  </div>
+                                  <v-slider style="
+                                  margin-bottom: -12px;
+                                  align-self: end;" id="sliderMetros" v-model.number="habilidadDistancia.distancia"
+                                    :color="habilidadDistancia.distancia>armaDistancia.total('alcanceRecto')?'red':'green'"
+                                    hint="Distancia en metros" min="0" :max="armaDistancia.total('alcance')||300"
+                                    thumb-label="always"></v-slider>
+
+
+                                </v-row>
+
+                              </v-layout>
+                              <v-row>
+                                <v-autocomplete size="6" v-model="armaDistancia" label="Arma"
+                                  :items="pj.inventario.darClaseRecursiva(Arco)"
+                                  @change="habilidadDistancia.arma= armaDistancia; cambiarTiro(); " return-object
+                                  item-text="nombre">
+                                  <template v-slot:item="{item}">
+
+                                    <v-list-item-avatar color="indigo" class="text-h6 font-weight-light white--text">
+                                      {{ item.bonApuntado }}
+                                    </v-list-item-avatar>
+                                    <v-list-item-content>
+                                      <v-list-item-title v-html="item.nombre"></v-list-item-title>
+                                      <v-list-item-subtitle v-html="item.daño"></v-list-item-subtitle>
+                                    </v-list-item-content>
+
+
+                                    <v-list-item-action>
+                                      <v-list-item-action-text
+                                        v-text="item.total('alcance')+'m'"></v-list-item-action-text>
+                                      <!-- <v-list-item-action-text v-text="item.total('alcanceRecto')+'m'"></v-list-item-action-text> -->
+                                      <span style="color:green; font-size:12px">{{item.total('alcanceRecto')}} m</span>
+                                    </v-list-item-action>
+
+                                  </template>
+                                </v-autocomplete>
+
+                                <v-autocomplete size="6" v-model="municion" label="Munición"
+                                  :items="pj.inventario.darClaseRecursiva(Municion)" return-object item-text="nombre"
+                                  @change="armaDistancia.utilizar(municion)">
+                                  <template v-slot:item="{item}">
+
+                                    <v-list-item-avatar :color="getColor(item.daño)"
+                                      class="text-h6 font-weight-light white--text">
+                                      {{ item.ctd }}
+                                    </v-list-item-avatar>
+                                    <v-list-item-content>
+                                      <v-list-item-title v-html="item.nombre"></v-list-item-title>
+                                      <v-list-item-subtitle v-html="item.modArma?.efectos"></v-list-item-subtitle>
+                                    </v-list-item-content>
+
+
+                                    <v-list-item-action>
+                                      <v-list-item-title><span
+                                          :text-color="getColor(item.daño)"><b>{{item.daño}}</b></span>
+                                        daño</v-list-item-title>
+
+                                      <v-list-item-action-text v-text="item.daño"
+                                        text-color="red"></v-list-item-action-text>
+                                    </v-list-item-action>
+
+                                  </template>
+                                </v-autocomplete>
+
+                                <!-- <v-text-field v-model="arma.daños" label="%" size="1">
+                                  </v-text-field> -->
+
+                                <!-- <v-select size="1" v-model="daño" :items="arma.daños" label="Daño" return-object
+                                    @change="arma.daño=daño.dado; console.log(arma.daño.dado)">
+                                  </v-select> -->
+
+                                <div class="d-inline-flex">
+                                  <v-autocomplete size="2" v-model="dañoDistancia" :items="armaDistancia.daños"
+                                    label="Daño" return-object
+                                    @change="armaDistancia.daño=dañoDistancia.dado; console.log(armaDistancia.total[daño])">
+                                  </v-autocomplete>
+                                  <v-text-field v-model="iuDaño.dado" :label="daño" size="1" :color="getColor(dado)"
+                                    append-icon="mdi-dice-3" @click="iuDaño.dado=armaDistancia.daño.tirar()"
+                                    @click:append="iuDaño.dado=armaDistancia.daño.tirar()">
+
+                                    <v-btn slot="append-outer" icon color="green"
+                                      @click="habilidadDistancia.xpTipoTirada(habilidadDistancia.tirada(dado),dado)">
+                                      <v-icon>mdi-check-outline</v-icon>
+                                    </v-btn>
+
+                                  </v-text-field>
+
+                                </div>
+
+                              </v-row>
+
+
+                              </v-layout>
+
+                            </template>
+                          </v-expansion-panel-content>
+                        </v-expansion-panel>
+                      </v-expansion-panels>
+                    </v-row>
+
+
+
+                  </v-container>
+                </v-tab-item>
+
+
+                <!-- Tab magia -->
+                <v-tab-item value='Magia'>
+                  <v-container fluid>
+                    <v-row>
+                      <v-autocomplete v-model="artes" :items="pj.getClaseHabilidad('Arte')" label="Artes"
+                        deletable-chips multiple small-chips return-object item-text="nombre">
+                      </v-autocomplete>
+                    </v-row>
+
+                    <v-row>
+                      <div id="dh"> HAz algo</div>
+                    </v-row>
+
+                    <v-row>
+
+                      <template>
+
+                        <v-row>
+                          <v-col cols="12" sm="4">
+
+                            <!-- <v-text-field v-model="hechizo.nombre" color="purple darken-2" label="Nombre" required>
+                            </v-text-field> -->
+
+                            <v-autocomplete v-model="hechizo" :items="pj.getClaseHabilidad('Hechizo')" label="Hechizo"
+                              color="blue-grey lighten-2" return-object item-text="nombre"
+                              @click="copiarHechizo(hechizo)">
+
+                              <template v-slot:item="{item}">
+
+                                <v-list-item-avatar color="indigo" class="text-h5 font-weight-light white--text">
+                                  {{ item.pm }}
+                                </v-list-item-avatar>
+                                <v-list-item-content>
+                                  <v-list-item-title v-html="item.nombre +'  '+item.v+'%'"></v-list-item-title>
+                                  <v-list-item-subtitle v-html="item.v+'%'">%</v-list-item-subtitle>
+                                </v-list-item-content>
+
+
+                                <v-list-item-action>
+                                  <v-list-item-action-text v-text="item.v+'%'"></v-list-item-action-text>
+
+
+                                </v-list-item-action>
+
+
+                              </template>
+                            </v-autocomplete>
+                          </v-col>
+
+
+                          <v-col cols="12" sm="1">
+                            <v-text-field v-model.number="hechizo.pm" type="number" color="blue darken-2" label="PM"
+                              required>
+                            </v-text-field>
+                          </v-col>
+
+
+                          <v-col cols="12" sm="1">
+                            <v-text-field v-model="hechizo.valor" type="number" color="blue darken-2" label="Valor"
+                              required>
+                            </v-text-field>
+                          </v-col>
+
+
+                          <v-col cols="12" sm="4">
+                            <v-slider v-model="hechizo.v" color="orange" label="Total" hint="Be honest" min="1"
+                              max="300" thumb-label="always"></v-slider>
+                          </v-col>
+
+
+                        </v-row>
+
+
+                      </template>
+
+                    </v-row>
+
+                    <!-- IU -->
+
+                    <v-row>
+                      <template>
+                        <v-col cols="12" sm="4">
+                          <v-text-field v-model="iHechizo.nombre" color="blue darken-2" label="Nombre" required>
+                          </v-text-field>
+                        </v-col>
+
+                        <v-col cols="12" sm="1">
+                          <v-text-field v-model.number="iHechizo.pm" type="number" color="blue darken-2" label="PM"
+                            required>
+                          </v-text-field>
+                        </v-col>
+
+                        <v-col cols="12" sm="1">
+                          <v-text-field v-model.number="iHechizo.total" type="number" color="blue darken-2"
+                            label="Valor" required>
+                          </v-text-field>
+                        </v-col>
+                        <v-col cols="12" sm="1">
+                          <v-text-field v-model.number="iHechizo.dados" type="number"
+                            :color="TipoTirada.color(iHechizo.grado)" label="Dados" required>
+                          </v-text-field>
+                        </v-col>
+                        <v-col cols="12" sm="1">
+                          <v-text-field v-model.number="iHechizo.gastado" type="number" color="blue darken-2"
+                            label="Gastado" required>
+                          </v-text-field>
+                        </v-col>
+
+                        <v-col cols="12" sm="4">
+                          <v-slider v-model.number="iHechizo.v" color="orange" label="Total" hint="Be honest" min="1"
+                            max="300" thumb-label="always"></v-slider>
+                        </v-col>
+                      </template>
+
+                    </v-row>
+
+                    <v-row v-for="a in artes">
+                      <template>
+                        <v-col cols="12" sm="4">
+                          <v-text-field v-model="a.nombre" color="blue darken-2" label="Nombre" required>
+                          </v-text-field>
+                        </v-col>
+
+                        <v-col cols="12" sm="1">
+                          <v-text-field v-model.number="a.pm" type="number" color="blue darken-2" label="PM" required>
+                          </v-text-field>
+                        </v-col>
+
+                        <v-col cols="12" sm="1">
+                          <v-text-field v-model.number="a.total" type="number" color="blue darken-2" label="Valor"
+                            required>
+                          </v-text-field>
+                        </v-col>
+                        <v-col cols="12" sm="1">
+                          <v-text-field v-model.number="a.tirada" type="number" :color="TipoTirada.color(a.grado)"
+                            label="Tirada" required>
+                          </v-text-field>
+                        </v-col>
+                        <v-col cols="12" sm="1">
+                          <v-text-field v-model.number="a.gastado" type="number" color="blue darken-2" label="Gastado"
+                            required>
+                          </v-text-field>
+                        </v-col>
+
+                      </template>
+
+                    </v-row>
+
+                    <v-row>
+                      <v-btn @click="iuHechizo()">IU</v-btn>
+                      <div id="divHechizo"></div>
+                    </v-row>
+
+                  </v-container>
+                </v-tab-item>
+              </v-tabs>
+
+
+            </v-card>
+          </template>
+
+        </template>
+
+        <!-- calendario -->
+        <template>
+          <!-- <v-row>
+            <v-col cols="12" sm="6" md="4">
+              <v-menu  :nudge-right="40" transition="scale-transition" offset-y
+                min-width="auto">
+                <template v-slot:activator="{ on, attrs }">
+                  <v-text-field v-model="date" label="Fecha" prepend-icon="mdi-calendar" readonly v-bind="attrs"
+                    v-on="on">
+                  </v-text-field>
+                </template>
+                <v-date-picker v-model="date" dark locale='es'></v-date-picker>
+              </v-menu>
+            </v-col>
+
+            <v-spacer></v-spacer>
+          </v-row> -->
+          <input id="party" type="datetime-local" name="fecha" step="1" v-model="date" />
+
+
+          <v-row>
+            <v-col cols="12" lg="6">
+              <!-- <v-menu
+                ref="menu1"
+                v-model="menu1"
+                :close-on-content-click="false"
+                transition="scale-transition"
+                offset-y
+                max-width="290px"
+                min-width="auto"
+              >
+                <template v-slot:activator="{ on, attrs }">
+                  <v-text-field
+                    v-model="date"
+                    label="Fecha Mundo"
+                    persistent-hint
+                    prepend-icon="mdi-calendar"
+                    v-bind="attrs"
+                  
+                    v-on="on"
+                  ></v-text-field>
+                </template>
+                <v-date-picker
+                  v-model="date"
+                  no-title
+                  locale='es'
+                  :first-day-of-week="1"
+                  @input="menu1 = false"
+                ></v-date-picker>
+              </v-menu> -->
+            </v-col>
+
+          </v-row>
+
+          <!-- <v-row justify="space-around" align="center">
+            <v-time-picker v-model="hora" scrollable use-seconds></v-time-picker>
+          </v-row> -->
+        </template>
+
+        <!-- hora -->
+
+        <div id="editor"></div>
+        <v-btn color="primary" @click="dialog = true;">
+          Open Dialog
+        </v-btn>
+
+        <v-tooltip bottom>
+          <template v-slot:activator="{ on, attrs }">
+            <v-btn color="primary"
+              onclick="fechaMundo=new Date(pj.fecha); console.log(fechaMundo);document.getElementById('party').value=fechaMundo.fechahora()"
+              dark>
+              Actualizar
+            </v-btn>
+          </template>
+          <span>Actualizar fecha con la del personaje</span>
+        </v-tooltip>
+
+        <a @click="tab='Inventario'">Inventario</a>
+
+        <a onclick="pj.fecha=fechaMundo">Fecha a PJ</a>
+
+
+
+        <v-dialog v-model="dialog" width="auto">
+          <v-card>
+            <v-card-actions>
+              {{pj.nombre}}
+              <v-spacer></v-spacer>
+              <v-btn color="primary" icon="mdi-heart"
+                @click="pj.cuerpoDaño('canvas')"><v-icon>mdi-cached</v-icon></v-btn>
+              <v-btn color="primary" icon="mdi-heart" @click="dialog = false"><v-icon>mdi-close</v-icon></v-btn>
+            </v-card-actions>
+            <canvas id="canvas" width="500" height="900" style="background-color: black;">
+              Your browser does not support the HTML5 canvas tag.</canvas>
+            <v-btn icon="mdi-close" color="secondary"></v-btn>
+
+          </v-card>
+        </v-dialog>
+
+        <v-dialog v-model="dialogoHabilidad" width="auto">
+          <v-card>
+            <v-card-actions>
+              Tirar dados
+              <v-spacer></v-spacer>
+              <v-btn color="primary" icon="mdi-heart"
+                @click="dialogoHabilidad = false"><v-icon>mdi-close</v-icon></v-btn>
+            </v-card-actions>
+            <input-habilidad id="iH"></input-habilidad>
+
+            <v-btn icon="mdi-close" color="secondary"></v-btn>
+
+          </v-card>
+        </v-dialog>
+        <v-dialog v-model="dialogoSubir" width="auto">
+          <v-card>
+            <v-card-actions>
+              Subir habilidad
+              <v-spacer></v-spacer>
+              <v-btn color="primary" icon="mdi-heart" @click="dialogoSubir = false"><v-icon>mdi-close</v-icon></v-btn>
+            </v-card-actions>
+            <input-subir id="iS"></input-subir>
+
+            <v-btn icon="mdi-close" color="secondary"></v-btn>
+
+          </v-card>
+        </v-dialog>
+
+
+        <div id="test4" hidden>
+          <h2>Cuerpo</h2>
+          <img id="cuerpo" src="Body.png" alt="Cuerpo" usemap="#bodymap">
+          <map name="bodymap" id="bodymap">
+            <!-- <area shape="circle" coords="243,59,50" alt="Cabeza" onclick="console.log('Hostia en la bocha')"> -->
+            <area shape="circle" coords="243,130,30" alt="cuello" onclick="console.log('Hostia en cuello')">
+            <area shape="circle" coords="242,60,40" alt="cara" title="cara" onclick="console.log('Hostia en cara')">
+            <area shape="circle" coords="243,19,20" alt="craneo" title="craneo"
+              onclick="console.log('Hostia en craneo');">
+            <area shape="circle" coords="243,59,50" alt="" onclick="console.log('Hostia en ')">
+            <!-- <area shape="circle" coords="243,59,314,248" alt="" onclick="console.log('Hostia en pecho')"> -->
+            <area shape="rect" coords="170,158,314,248" alt="pecho" onclick="console.log('Hostia en pecho')">
+            <area shape="rect" coords="94,320,159,410" alt="antebrazo D" onclick="console.log('Hostia en antebrazo D')">
+          </map>
+        </div>
+
+        <!-- grafico -->
+        <!-- <template>
+          <v-card class="mx-auto text-center" dark max-width="600">
+            <v-card-text>
+              <v-sheet>
+                <v-sparkline :value="value" color="white" height="100" padding="24" stroke-linecap="round" line-width=1>
+                  <template v-slot:label="item">
+                    {{ item.value }}%
+                  </template>
+                </v-sparkline>
+              </v-sheet>
+            </v-card-text>
+
+            <v-card-text>
+              <div class="text-h4 font-weight-thin">
+                Subida en {{habilidad}}
+              </div>
+            </v-card-text>
+
+            <v-divider></v-divider>
+
+            <v-card-actions class="justify-center">
+              <v-btn block text>
+                Go to Report
+              </v-btn>
+            </v-card-actions>
+          </v-card>
+        </template> -->
+
+
+        <!-- Bottomsheet mover-->
+        <v-bottom-sheet v-model="sheet" persistent>
+
+          <v-sheet class="text-center" height="200px">
+            <div class="py-3">
+              Elige donde mover
+              <v-select v-model="contenedorMover" :items="pj.inventario.darContenedores()" label="contenedor"
+                return-object
+                @change="selected.forEach(i => {contenedor.mover(i,contenedorMover)});selected=[];sheet = !sheet">
+                <template v-slot:selection="{ item, index }">
+                  {{ item.nombre }}
+                </template>
+
+                <template v-slot:item="{ item}">
+                  {{ item.nombre }} <v-badge :content="item.carga+'/'+item.max + 'kg'"
+                    :color="interColor(item.carga,item.max,true)" inline>
+                    {{item.carga}}/{{item.max}}
+                  </v-badge>
+                </template>
+
+              </v-select>
+            </div>
+          </v-sheet>
+        </v-bottom-sheet>
+
+        <!-- Dial  customizado -->
+        <v-speed-dial right bottom fixed>
+
+          <template v-slot:activator>
+            <v-btn v-model="fab" color="red darken-2" dark fab>
+              <v-icon v-if="fab">
+                mdi-close
+              </v-icon>
+              <v-icon v-else>
+                mdi-account-circle
+              </v-icon>
+            </v-btn>
+          </template>
+          <v-btn fab dark small color="green">
+            <v-icon>mdi-pencil</v-icon>
+          </v-btn>
+          <v-btn id="mic" fab dark small color="red" @click="hablar()">
+            <v-icon>mdi-microphone</v-icon>
+          </v-btn>
+          <v-btn v-if="tab=='Inventario'" fab dark small color="indigo">
+            <v-icon>mdi-plus</v-icon>
+          </v-btn>
+          <div v-if="tab=='Inventario'">
+            <v-btn fab dark small color="red">
+              <v-icon>mdi-delete</v-icon>
+            </v-btn>
+            <v-btn fab dark small color="red">
+              <v-icon>mdi-delete</v-icon>
+            </v-btn>
+            <div v-if="selected.length>0">
+              <v-btn small @click="selected.forEach(i => {contenedor.darObjeto(i).equipar(pj)});selected=[];">
+                Equipar
+              </v-btn>
+              <v-btn small @click="selected.forEach(i => {contenedor.darObjeto(i).desequipar(pj)});selected=[];">
+                Desequipar
+              </v-btn>
+              <v-btn small @click="sheet = !sheet">Mover</v-btn>
+              <v-btn v-if="selected.length==1" small @click="editar(selected[0])">Editar</v-btn>
+              <v-btn small @click="selected.forEach(i => {contenedor.sacar(i)});selected=[];">
+                Tirar
+              </v-btn>
+              <!-- <v-btn @click="moverItem(contenedor.objetos)">Subir
+          </v-btn> -->
+              <v-btn small @click="arribaItems()">
+                <v-icon>mdi-format-vertical-align-top</v-icon>
+              </v-btn>
+              <v-btn small
+                @click="selected.sort((a, b) => contenedor.objetos.indexOf(a)-contenedor.objetos.indexOf(b)).forEach(element => moverItems(contenedor.objetos,element));">
+                <v-icon>mdi-arrow-up-bold</v-icon>
+              </v-btn>
+            </div>
+          </div>
+
+
+        </v-speed-dial>
+
+
+
+        <!-- <button type="button" class="transition-swing v-btn v-btn--bottom v-btn--is-elevated v-btn--fab v-btn--fixed v-btn--has-bg v-btn--right v-btn--round theme--light v-size--large primary" aria-label="Scroll to top" title="Scroll to top" style="z-index: 6; margin-bottom: 0px; transform-origin: center center;"><span class="v-btn__content"><span aria-hidden="true" class="v-icon notranslate theme--light"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-hidden="true" class="v-icon__svg"><path d="M7.41,15.41L12,10.83L16.59,15.41L18,14L12,8L6,14L7.41,15.41Z"></path></svg></span></span></button> -->
+
+      </v-main>
+
+      <!-- <v-speed-dial v-model="fab" transition='slide-y-reverse-transition'>
+        <template v-slot:activator>
+          <v-btn v-model="fab" color="blue darken-2" dark fab>
+            <v-icon v-if="fab">
+              mdi-close
+            </v-icon>
+            <v-icon v-else>
+              mdi-account-circle
+            </v-icon>
+          </v-btn>
+        </template>
+        <v-btn fab dark small color="green">
+          <v-icon>mdi-pencil</v-icon>
+        </v-btn>
+        <v-btn fab dark small color="indigo">
+          <v-icon>mdi-plus</v-icon>
+        </v-btn>
+        <v-btn fab dark small color="red">
+          <v-icon>mdi-delete</v-icon>
+        </v-btn>
+      </v-speed-dial> -->
+    </v-app>
+  </div>
+
+
+
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.x/dist/vue.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vuetify@2.x/dist/vuetify.min.js"></script>
+
+
+  <script src="https://www.gstatic.com/firebasejs/4.7.0/firebase.js"></script>
+
+  <!-- scrips del rol -->
+  <script src='js/coor.js'></script>
+  <script src='js/utils.js'></script>
+  <script src='js/D.js'></script>
+  <script src='js/habilidades.js'></script>
+  <script src='js/inventario.js'></script>
+  <script src='js/localizaciones.js'></script>
+  <script src='js/armaduras.js'></script>
+  <script src='js/rol.js'></script>
+  <script src='js/vueRol.js'></script>
+  <script src='js/voz-rol.js'></script>
+
+
+
+  <!-- <script>
+    // var chaleco = new Pieza(["Pecho", "Abdomen"], 3);
+    // var vestidoDragon = new Armadura(
+    //   [new Pieza(dartodasLocalizaciones(pj, 'Craneo', 'Cara', 'Pie I', 'Pie D', 'Mano I', 'Mano D'), 7),
+    //     chaleco]
+    // );
+
+
+    function cuerpoModal(rol) {
+      let p = null;
+      if (rol === "PNJ")
+        p = pnj[$('#nombreEnemigo').val()]
+      else
+        p = pj;
+
+      console.log('rol:' + rol);
+      let canvas = document.getElementById('canvas');
+      let h = alto();
+      let zoomCuerpo = h / 900 * 0.95;
+      canvas.width = 500 * zoomCuerpo;
+      canvas.height = 900 * zoomCuerpo;
+      p.cuerpoDaño("canvas", zoomCuerpo);
+
+    }
+
+    cuerpoModal();
+    // cuerpoDaño('canvas');
+
+
+    new Vue({
+      el: '#app',
+      vuetify: new Vuetify({
+        theme: {
+          dark: true,
+        },
+      }),
+
+      // computed: {
+      //   pm: {
+      //     get: function () {
+      //       //round or truncate
+      //       // return Math.round(pj.PM)
+      //       return Math.trunc(pj.PM)
+      //     },
+      //     set: function (newValue) {
+      //       pj.PM = newValue
+      //     }
+      //   }
+      // },
+      methods: {
+
+        act(fecha = true) {
+          if (fecha) this.date = fechaMundo.fechahora()
+          if (pj.fecha) {
+            console.log("actualizao fecha");
+            fechaMundo = new Date(pj.fecha);
+            this.date = fechaMundo.fechahora()
+          }
+
+          pj.act();
+          this.p = pj;
+
+          let lastContenedor = this.contenedor;
+          console.log(lastContenedor);
+          let contenedores = pj.inventario.darClaseRecursiva(Contenedor)
+          let encontrado = false;
+          console.log(lastContenedor.nombre, this.contenedor.nombre);
+          if (contenedores.length > 0) {
+            contenedores.forEach(c => {
+              if (c.nombre == lastContenedor.nombre) {
+                this.contenedor = c;
+                encontrado = true;
+                console.log("mismo contenedor encontrado");
+              }
+
+            });
+            console.log(pj.inventario.darClaseRecursiva(Contenedor));
+
+          }
+          if (!encontrado)
+            this.contenedor = pj.inventario;
+          console.log('ACT');
+
+        },
+        //METODOS DE GUARDAR
+        save() {
+          console.log('Data saved')
+
+        },
+        cancel() {
+          console.log('Dialog closed')
+        },
+        cargarOnline(nombre) {
+          try {
+            let ruta = `personajes/${nombre}/`;
+            // console.log("CARGAR RUTA:" + ruta);
+
+            fbActual = database.ref(ruta);
+
+            // si lo hago así es menos eficiente,
+            // porque siempre que haya un cambio
+            // donde sea me, va a cargar el personaje entero
+            fbActual.on('value', function (item) {
+              console.log("onvalue personaje VUE" + item.val().nombre);
+
+              let nuevo = item.val();
+              if (nuevo.clase) {
+                // pj =  new Humanoide({});
+                pj = Clase.convertir(item.val())
+              }
+              else
+                pj = new Humanoide({});
+              // pj = new Animal({});
+              pj.setAll(item.val());
+
+              pj.act();
+              this.p = pj;
+
+              document.title = pj.nombre;
+
+              console.log(pj);
+              //TODO: ver si es necesario, act() no funciona desde aquí
+              document.getElementById('loadOnline').click()
+
+
+            });
+
+          } catch (error) {
+            console.log("ERROR EN CARGA ONLINE");
+            alert("ERROR EN CARGA ONLINE")
+
+          }
+
+        },
+        close() {
+          console.log('Dialog closed')
+        },
+
+        clickHabilidad(item, row) {
+
+          if (document.getElementById('iH')) {
+            document.getElementById('iH').h = item;
+            this.dialogoHabilidad = true;
+          }
+          else {
+            this.dialogoHabilidad = true;
+            //espero que se cargue
+            setTimeout(function () {
+              this.dialogoHabilidad = false;
+              document.getElementById('iH').h = item;
+              this.dialogoHabilidad = true;
+            }, 1);
+          }
+          // this.dialogoHabilidad=true;
+
+        },
+
+        clickSubir(item, row) {
+          // console.log('row clicked', item);
+          if (document.getElementById('iS')) {
+            document.getElementById('iS').h = item;
+            this.dialogoSubir = true;
+          }
+          else {
+            this.dialogoSubir = true;
+            //espero que se cargue
+            setTimeout(function () {
+              this.dialogoSubir = false;
+              document.getElementById('iS').h = item;
+              this.dialogoSubir = true;
+            }, 1);
+          }
+        },
+
+
+        cambiarTiro() {
+          document.getElementById('sliderMetros').setAttribute('max', '9999');
+        },
+
+        // Inventario
+        unir(array) {
+          var o = array[0];
+          if (o instanceof Objetos && o.ctd) {
+            return o.unir(array.slice(1));
+          } else return false;
+        },
+
+        // direccion subir -1 , bajar +1
+        moverItems(array, obj, dir = -1) {
+          array.splice(array.indexOf(obj) + dir, 0,
+            array.splice(array.indexOf(obj), 1)[0])
+
+        },
+
+        arribaItems() {
+
+          this.selected.sort((a, b) => this.contenedor.objetos.indexOf(a) - this.contenedor.objetos.indexOf(b)).reverse()
+            .forEach(element => { this.contenedor.sacar(element); this.contenedor.add(element, 0) });
+
+        },
+
+        abajoItems() {
+
+          this.selected.sort((a, b) => this.contenedor.objetos.indexOf(a) - this.contenedor.objetos.indexOf(b))
+            .forEach(element => { this.contenedor.sacar(element); this.contenedor.add(element) });
+
+        },
+
+        // moverItem(array, dir=-1 ) {
+        //   array.splice(array.indexOf(this.selected[0]) +dir, 0,
+        //                             array.splice(array.indexOf(this.selected[0]), 1)[0])
+
+        // },
+
+        parseStringToFunction(func) {
+
+          // console.log(func);
+          if (!func || func.length < 1) return undefined;
+          if ((func.includes("=>")))
+            return (new Function('return ' + func)());
+          else
+            return (new Function('return ' + 'obj=>obj.' + func)());
+        },
+
+        tirada() {
+          return this.habilidadFiltro.tirada(this.dado);
+        },
+
+        copiarHechizo(obj) {
+          console.log("COPIA HECHIZO");
+
+          // this.copiaHechizo = new Hechizo();
+          // this.copiaHechizo.setAll(obj);
+          // this.copiaHechizo.valor += 10;
+          // console.log(this.copiaHechizo);
+
+          this.iHechizo = this.hechizo.iu();
+          console.log(this.iHechizo);
+        },
+
+        // IU
+
+        //TODO:
+        darTooltip(c, habilidad = false, ah = 'v') {
+
+          let html = "";
+          if (c) {
+
+            if (habilidad) {
+              for (const key in pj.habilidades[c].mods[ah]) {
+                let valor = pj.habilidades[c].mods[ah][key];
+                // let color=valor>0?'green':'red';
+                let color = pj.habilidades[c][ah] < pj.habilidades[c].total(ah) ? 'green' : 'red';
+                html += `${key}: <b style="color: ${color}"> ${valor.op} ${valor.ctd} </b><br>`
+              }
+
+            }
+            else
+              for (const key in pj.getMod(c)) {
+                let valor = pj.getMod(c)[key];
+                // let color=valor>0?'green':'red';
+                let color = pj.getCar(c) > pj[c] ? 'green' : 'red';
+                html += `${key}: <b style="color: ${color}">${c} ${valor.op} ${valor.ctd} </b><br>`
+              }
+
+          }
+          else {
+            for (const key in pj.listaMods) {
+              let mod = pj.listaMods[key];
+              // let color=valor>0?'green':'red';
+              let color = pj.getCar(c) > pj[c] ? 'green' : 'red';
+              html += `${key}: <b style="color: ${color}">${pj.listaMods[key].efectos}  </b><br>`
+            }
+
+          }
+
+          return html;
+
+          // return pj.getModTotal(c);
+
+        },
+
+        iuHechizo() {
+          //  let dv= document.getElementById('divHechizo');
+          //  let ih = new InputHechizo(this.copiaHechizo,true);
+
+
+          //  let ia = new InputArte(this.copiaHechizo,true);
+          //  ia.setPersonaje(pj);
+          //  ia.setHabilidad(pj.getHabilidad('Intensidad'));
+
+          //  ih.setPersonaje(pj);
+          //  ih.setHabilidad(this.copiaHechizo);
+          //  ih.setArte(ia);
+          //  dv.appendChild(ia);
+
+          // dv.appendChild(btn);
+          //  dv.appendChild(ih);
+          IUHechizos(pj, 'divHechizo', true);
+
+
+        },
+
+        abrir(contenedor, index) {
+          if (contenedor instanceof Contenedor) {
+            // console.log(contenedor);
+
+            if (index || index == 0) {
+              this.abiertos.splice(index);
+            } else {
+              this.abiertos.push(this.contenedor)
+            }
+
+            this.contenedor = contenedor;
+
+          }
+        },
+
+        anterior(contenedor) {
+          if (this.abiertos.length > 0) {
+            this.contenedor = this.abiertos.pop()
+
+          }
+        },
+
+        interpolarColor(val, invert = false) {
+
+          if (val > 100) {
+            val = 100;
+          }
+          else if (val < 0) {
+            val = 0;
+          }
+
+          if (!invert) val = 100 - val;
+
+          var r = Math.floor((255 * val) / 100),
+            g = Math.floor((255 * (100 - val)) / 100),
+            b = 0;
+          return "rgb(" + r + "," + g + "," + b + ")"
+        },
+
+        redGreenColor(percent, invert = false) {
+
+          if (percent > 100) { percent = 100; }
+          else if (percent < 0) { percent = 0; }
+
+          if (!invert) percent = 100 - percent;
+
+          var r, g, b;
+
+          if (percent < 50) {
+            // green to yellow
+            r = Math.floor(255 * (percent / 50));
+            g = 255;
+
+          } else {
+            // yellow to red
+            r = 255;
+            g = Math.floor(255 * ((50 - percent % 50) / 50));
+          }
+          b = 0;
+
+          return "rgb(" + r + "," + g + "," + b + ")"
+        },
+
+        shadow(pm, capacidad = 10) {
+          return `text-shadow: 0px 0px ${pm}px ${this.redGreenColor(pm / capacidad * 100)};`
+        }
+
+        ,
+        interColor(min, max, inverso = false) {
+          let p = min / max;
+          if (inverso) p = 1 - p;
+          p = p * 100;
+
+          if (p > 78) return 'green'
+          else if (p < 10) return 'red'
+          else if (p < 40) return 'orange'
+          else if (p > 50) return 'inherit'
+          else return ''
+
+        },
+
+        getColor(v) {
+          if (v > 100) return 'green'
+          else if (v < 10) return 'red'
+          else if (v < 40) return 'orange'
+          else if (v > 50) return 'inherit'
+          else return ''
+        },
+
+        subirSort(items, index, isDesc) {
+          console.log(index, isDesc);
+          items.sort((a, b) => {
+            // console.log(index[0]);
+            if (index[0] === "sub") {
+              // return a.subible() - b.subible()
+              return a.subible() - b.subible()
+            } else
+              if (index[0] === "t") {
+                // return a.subible() - b.subible()
+                return a.total() - b.total();
+              } else {
+                return a[index[0]] < b[index[0]] ? -1 : 1;
+              }
+          });
+
+          if (isDesc[0]) return items.reverse()
+          return items;
+        },
+
+
+        editar(objeto) {
+          // console.log("Editar:"+objeto );
+          //   const keys = Object.keys(objeto);
+          //   const values = Object.values(objeto);
+
+          //   var editor = document.getElementById("editor");
+          //   editor.innerHTML = ""; //clear editor
+          //   var id = -1;
+          //   var k = -1
+          //   var v = -1;
+          //   for (i = 0; i < keys.length; i++) {
+          //     if (i == 0) id = values[i];
+          //     k = keys[i];
+          //     v = values[i];
+
+          //     console.log(k + " ->" + v)
+
+          //     editor.innerHTML = editor.innerHTML + ' <b>' + k.toUpperCase() + ':</b>' +
+          //       `<input data-toggle="tooltip"  id="edit${k}" value='${v}'' title="${k}" ><br>`
+          //     // '<input data-toggle="tooltip"  id="edit' + keys[i] + '" value=' + values[i] + ' title=' + keys[i] + ' ><br>';
+          //     //Probar con forms
+
+          //   }
+          //   editor.innerHTML = editor.innerHTML + `<button type="button" class="btn btn-success" onclick="guardarObjeto()">Guardar</button>`
+          var editor = document.getElementById("editor");
+          editor.innerHTML = "";
+          editor.appendChild(new InputCustom(objeto));
+        }
+
+
+      },
+
+
+      //TODO: editar los objetos con el modal
+
+      watch: {
+        value(val) {
+          this.selectedHeaders = val;
+          console.log(val);
+        },
+
+        date(val) {
+          fechaMundo = new Date(val);
+          console.log(val);
+        },
+
+        // valColHab(v) {
+        //   this.colHabSel = v;
+
+        // },
+
+      },
+      created() {
+        this.selectedHeaders = this.headerInventario;
+        // this.colHabSel = this.colHab;
+        this.colHabSel = this.headers;
+        console.log(this.selectedHeaders);
+      },
+      data: {
+        hora: "07:00",
+        date: fechaMundo.fechahora(),
+        menu1: false,
+        dialogoHabilidad: false,
+        dialogoSubir: false,
+        //drawer
+        drawer: false,
+        group: null,
+        tab: 'Habilidades',
+
+        //fab
+        fab: false,
+
+        expanded: [],
+        singleExpand: false,
+        verBuscar: false,
+        search: '',
+        abiertos: [],
+        max25chars: v => v.length <= 25 || 'Nombre largo',
+        headers: [
+          {
+            text: 'Nombre ',
+            align: 'start',
+            groupable: false,
+            value: 'nombre',
+            width: "auto"
+          },
+
+          { text: 'XP', value: 'xp', groupable: false, width: "8%" },
+          // { text: 'Categoria', value: 'tipo' },
+          // { text: 'Clase', value: 'clase' },
+          { text: 'Valor', value: 'valor', groupable: false },
+          {
+            text: 'Total', value: "t", groupable: false,
+            // sort: function(a, b) {
+            //   console.log('orden'+a.total()- b.total());
+            //       return a.total()- b.total();
+            //   // implement custom compare function here
+            // },sortable: true
+          },
+          // { text: 'E', value: 'especial', groupable: false },
+          // { text: 'C', value: 'critico', groupable: false },
+          { text: 'Subir', value: 'sub', groupable: false },
+          { text: '', value: 'data-table-expand', groupable: false, width: "5%" },
+        ],
+
+        colHab: [
+          {
+            text: 'Nombre ',
+            align: 'start',
+            groupable: false,
+            value: 'nombre',
+            width: "auto"
+          },
+
+          { text: 'XP', value: 'xp', groupable: false, width: "8%" },
+          // { text: 'Categoria', value: 'tipo' },
+          // { text: 'Clase', value: 'clase' },
+          { text: 'Valor', value: 'valor', groupable: false },
+          { text: 'Porcentaje', value: "porcentaje", groupable: false },
+          { text: 'E', value: 'especial', groupable: false },
+          { text: 'C', value: 'critico', groupable: false },
+
+        ],
+        headerInventario: [
+          {
+            text: 'Nombre ',
+            align: 'start',
+            groupable: false,
+            value: 'nombre'
+          },
+
+          { text: 'Ctd', value: 'ctd', groupable: false },
+          // { text: 'Categoria', value: 'tipo' },
+          { text: 'Clase', value: 'clase' },
+          { text: 'Peso', value: 'peso', groupable: false },
+          { text: 'Valor', value: 'valor', groupable: false },
+
+        ],
+        p: pj,
+
+        nombrePersonaje: '',
+        nombrePersonajeOnline: '',
+        ct: constante,
+        contenedor: pj.inventario,
+        hechizo: new Hechizo('Hechizo'),
+        iHechizo: new iuHechizo(this.hechizo),
+        // picker: (new Date(Date.now() - (new Date()).getTimezoneOffset() * 60000)).toISOString().substr(0, 10),
+        date: fechaMundo.fechahora(),
+        dialog: false,
+        hidden: false,
+        selected: [],//inventario selected
+        filtro: "",
+        habilidadFiltro: new Habilidad(),
+        ifHabilidadFiltro: false,
+        arma: new Arma(),
+        habilidadDistancia: new HabilidadDistancia(),
+        armaDistancia: new ArmaDistancia(),
+        municion: new Municion(),
+        daño: [],
+        dañoDistancia: [],
+        distancia: 0,
+        dado: 100,
+        iuDaño: { dado: 0, daño: [] },
+        dadoDaño: 0,
+        dadoDañoDistancia: 0,
+        d100: new Dado('1d100'),
+        copiaHechizo: new Hechizo(),
+        artes: [],
+        value: [],
+        colHabSel: [],
+        selectedHeaders: [],
+
+        sliderSeparar: 0,
+
+        sheet: false, //bottom sheet mover
+        contenedorMover: null,
+
+        //GENERAL,
+        // arrayHeaders:["nombre"],
+        // arrayItems:pj.inventario.objetos,
+
+      }
+    })
+
+
+  </script> -->
+</body>
+
+</html>
