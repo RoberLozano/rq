@@ -19,6 +19,8 @@ let ptime = params.get('time') || params.get('t');
 
 console.info(pmap);
 
+// let unitsColor = colorPickerUnits.value;
+// let tensColor = colorPickerTens.value;
 
 // Document ready function
 document.addEventListener('DOMContentLoaded', async () => {
@@ -138,6 +140,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             document.getElementById('characterContextMenu').style.display = 'none';
         });
+
 
         //Menus de contexto opcional
         ctxOpcional.addEventListener('click', () => {

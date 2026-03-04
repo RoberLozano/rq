@@ -1,9 +1,31 @@
 import DiceBox from 'https://cdn.jsdelivr.net/npm/@3d-dice/dice-box-threejs@0.0.12/dist/dice-box-threejs.es.min.js';
 
+
 const diceContainer = document.getElementById('dice-container');
 const rollDiceButton = document.getElementById('rollDice');
+let unitsColor = colorPickerUnits.value;
+let tensColor = colorPickerTens.value;
 
-let DiceBoxInstance;
+
+
+// Crear contenedores separados para cada dado
+const tensContainer = document.createElement('div');
+tensContainer.id = 'tens-container';
+tensContainer.style.position = 'absolute';
+tensContainer.style.left = '0';
+tensContainer.style.width = '50%';
+tensContainer.style.height = '100%';
+diceContainer.appendChild(tensContainer);
+
+const unitsContainer = document.createElement('div');
+unitsContainer.id = 'units-container';
+unitsContainer.style.position = 'absolute';
+unitsContainer.style.right = '0';
+unitsContainer.style.width = '50%';
+unitsContainer.style.height = '100%';
+diceContainer.appendChild(unitsContainer);
+
+let DiceBoxTens, DiceBoxUnits;
 let diceResultOverlay;
 
 function showResultOverlay(text) {
@@ -48,8 +70,13 @@ function hideDiceAndResultAfterDelay(ms = 2000) {
 }
 
 async function initializeDiceBox() {
-    DiceBoxInstance = new DiceBox( '#dice-container', {
-        assetPath: '/m/img/', // Assuming dice assets are in /m/img/
+    console.log("initializeDiceBox");
+    console.log(tensColor);
+    console.log(unitsColor);
+ 
+    // Instancia para decenas (negro)
+    DiceBoxTens = new DiceBox('#tens-container', {
+        assetPath: '/m/img/',
         gravity: 1,
         mass: 1,
         friction: 0.8,
@@ -61,62 +88,80 @@ async function initializeDiceBox() {
         lightIntensity: 1.3,
         enableShadows: false,
         shadowTransparency: 0.8,
-    theme_customColorset: {
-      background: "#ff0000",
-      foreground: "#ffffff",
-      texture: "marble", // marble | ice
-      material: "glass" // metal | glass | plastic | wood
-    },
+        theme_customColorset: {
+            background:tensColor,
+            foreground: "#ffffff",
+            texture: "marble",
+            material: "glass"
+        },
         offscreen: false,
-        scale: 4, // Adjust scale as needed
+        scale: 4,
         suspendSimulation: false,
         delay: 100,
         onReroll: (results) => {
-            console.log('Reroll results:', results);
+            console.log('Tens Reroll results:', results);
         },
         onRollComplete: (results) => {
-            console.log('Roll complete results:', results);
+            console.log('Tens Roll complete results:', results);
         }
     });
-    DiceBoxInstance.initialize()
-        .then(() => {
-            console.log('DiceBox initialized');
-        })
-        .catch((e) => console.error('Error initializing DiceBox:', e));
+
+    // Instancia para unidades (rojo)
+    DiceBoxUnits = new DiceBox('#units-container', {
+        assetPath: '/m/img/',
+        gravity: 1,
+        mass: 1,
+        friction: 0.8,
+        restitution: 0.8,
+        linearDamping: 0.9,
+        angularDamping: 0.9,
+        spinForce: 0.05,
+        throwForce: 5,
+        lightIntensity: 1.3,
+        enableShadows: false,
+        shadowTransparency: 0.8,
+        theme_customColorset: {
+            background: unitsColor,
+            foreground: "#ffffff",
+            texture: "marble",
+            material: "glass"
+        },
+        offscreen: false,
+        scale: 4,
+        suspendSimulation: false,
+        delay: 500,
+        onReroll: (results) => {
+            console.log('Units Reroll results:', results);
+        },
+        onRollComplete: (results) => {
+            console.log('Units Roll complete results:', results);
+        }
+    });
+
+    
+    await Promise.all([
+        DiceBoxTens.initialize(),
+        DiceBoxUnits.initialize()
+    ]).then(() => {
+        console.log('DiceBoxes initialized');
+    }).catch((e) => console.error('Error initializing DiceBoxes:', e));
 }
 
 async function roll1d100() {
-    if (!DiceBoxInstance) {
-        console.error('DiceBox not initialized.');
+    if (!DiceBoxTens || !DiceBoxUnits) {
+        console.error('DiceBoxes not initialized.');
         return;
     }
     diceContainer.style.display = 'block';
-    DiceBoxInstance.updateConfig({
-    theme_customColorset: {
-      background: "#000000",
-      foreground: "#ffffff",
-      texture: "marble", // marble | ice
-      material: "glass" // metal | glass | plastic | wood
-    }
-  });
-    const resultsTens = await DiceBoxInstance.roll('1d10');
+    
+    // Lanzar ambos dados simultáneamente
+    const [resultsTens, resultsUnits] = await Promise.all([
+        DiceBoxTens.roll('1d10'),
+        DiceBoxUnits.roll('1d10')
+    ]);
 
-
-    // Roll for units (black die)
-
-DiceBoxInstance.updateConfig({
-    theme_customColorset: {
-      background: "#ff0000",
-      foreground: "#ffffff",
-      texture: "marble", // marble | ice
-      material: "glass" // metal | glass | plastic | wood
-    }
-  });
-
-    const resultsUnits = await DiceBoxInstance.roll('1d10');
-
-    const d10_1 = resultsTens.sets[0].rolls[0].value; // Primer d10 (decenas)
-    const d10_2 = resultsUnits.sets[0].rolls[0].value; // Segundo d10 (unidades)
+    const d10_1 = resultsTens.sets[0].rolls[0].value; // Primer d10 (decenas - negro)
+    const d10_2 = resultsUnits.sets[0].rolls[0].value; // Segundo d10 (unidades - rojo)
 
     let total;
     if (d10_1 === 0 && d10_2 === 0) {
@@ -131,16 +176,49 @@ DiceBoxInstance.updateConfig({
     console.log(`Roll 1d100: ${d10_1}${d10_2} -> ${total}`);
     showResultOverlay(total);
     hideDiceAndResultAfterDelay(2000);
-
 }
+
+function setDiceColor(type, color, numeros="#ffffff") {
+
+    console.log("Setdicecolor");
+    
+    // Normalizar el color: si es un nombre, convertirlo a formato válido
+    let normalizedColor = color;
+    if (!color.startsWith('#')) {
+        // Si no es hex, asumir que es un nombre de color válido para CSS
+        normalizedColor = color;
+    }
+    
+    const config = {
+        theme_customColorset: {
+            background: normalizedColor,
+            foreground: numeros,
+            texture: "marble",
+            material: "glass"
+        }
+    };
+    
+    if (type === 'tens' && DiceBoxTens) {
+        DiceBoxTens.updateConfig(config);
+        console.log(`Color de decenas cambiado a: ${normalizedColor}`);
+    } else if (type === 'units' && DiceBoxUnits) {
+        DiceBoxUnits.updateConfig(config);
+        console.log(`Color de unidades cambiado a: ${normalizedColor}`);
+    } else {
+        console.error(`Tipo de dado inválido: ${type}. Use 'tens' o 'units'.`);
+    }
+}
+
+
+
 async function roll(dados) {
-    if (!DiceBoxInstance) {
+    if (!DiceBoxTens) {
         console.error('DiceBox not initialized.');
         return;
     }
     diceContainer.style.display = 'block';
     if (dados === 'h') {
-        DiceBoxInstance.updateConfig({
+        DiceBoxTens.updateConfig({
             theme_customColorset: {
                 background: "#222222",
                 foreground: "#ffffff",
@@ -148,7 +226,7 @@ async function roll(dados) {
                 material: "glass"
             }
         });
-        const res = await DiceBoxInstance.roll('1d100+1d10');
+        const res = await DiceBoxTens.roll('1d100+1d10');
         const values = (res.sets || []).flatMap(s => (s.rolls || []).map(r => r.value || 0));
         const tensVal = Math.max(...values);
         const unitsVal = Math.min(...values);
@@ -160,7 +238,7 @@ async function roll(dados) {
         showResultOverlay(total);
         hideDiceAndResultAfterDelay(2000);
     } else {
-        DiceBoxInstance.updateConfig({
+        DiceBoxTens.updateConfig({
             theme_customColorset: {
                 background: "gold",
                 foreground: "white",
@@ -168,14 +246,14 @@ async function roll(dados) {
                 material: "plastic"
             }
         });
-        const resultsUnits = await DiceBoxInstance.roll(dados);
+        const resultsUnits = await DiceBoxTens.roll(dados);
         try {
             const total = (resultsUnits.sets || []).reduce((acc, set) => acc + (set.rolls || []).reduce((s, r) => s + (r.value || 0), 0), 0);
             if (!isNaN(total)) {
                 showResultOverlay(total);
                 hideDiceAndResultAfterDelay(2000);
             }
-        } catch (e) {}
+        } catch (e) { }
     }
 
 
@@ -184,13 +262,34 @@ async function roll(dados) {
 async function main() {
     await initializeDiceBox();
     rollDiceButton.addEventListener('click', roll1d100);
+
+            document.getElementById('colorPickerUnits').addEventListener('change', () => {
+            unitsColor = document.getElementById('colorPickerUnits').value;
+            console.log(unitsColor);
+            setDiceColor('units', unitsColor);            
+        }); 
+
+        document.getElementById('colorPickerTens').addEventListener('change', () => {
+            tensColor = document.getElementById('colorPickerTens').value;
+            console.log(tensColor);
+            setDiceColor('tens', tensColor)
+        }); 
+
+        document.getElementById('tirarDado').addEventListener('click', () => {
+            roll(dadoTxt.value);
+        });
     //add event listener keyboard 'd'
     document.addEventListener('keydown', (event) => {
         if (event.key === 'd') {
-            roll('1d100+1d10@70,7');
+            console.log("d PULSADO");
+
+            // roll('1d100+1d10@70,7');
+            roll(dadoTxt.value);
+            // setDiceColor('units','yellow');
         }
     });
 
 }
 
 main();
+

@@ -2,6 +2,20 @@
 // import {Habilidad, BonHabilidad} from './habilidades';
 // import {Objeto, Objetos, Arma, Contenedor} from './inventario';
 
+// ---------------------------------------------------------------------------
+// Base de datos local con Dexie.js (IndexedDB)
+// Requiere que Dexie esté cargado antes de este script, p. ej.:
+//   <script src="https://unpkg.com/dexie/dist/dexie.min.js"></script>
+// ---------------------------------------------------------------------------
+
+const rqDB = (typeof Dexie !== 'undefined') ? (() => {
+  const db = new Dexie('RoberQuestDB');
+  db.version(1).stores({
+    personajes: 'nombre' // clave primaria: nombre del personaje
+  });
+  return db;
+})() : null;
+
 
 // var Clases = {}
 // Clases['Caballo']=Caballo
@@ -1378,6 +1392,27 @@ class Animal extends Clase {
     localStorage.setItem(this.nombre, JSON.stringify(this));
   }
 
+  /**
+   * Guarda el personaje en IndexedDB mediante Dexie.js.
+   * La tabla 'personajes' de rqDB usa 'nombre' como clave primaria,
+   * por lo que put() inserta o actualiza el registro automáticamente.
+   * @returns {Promise<void>}
+   */
+  async saveDexie() {
+    if (!rqDB) {
+      console.warn('saveDexie: Dexie no está disponible. Recuerda cargar dexie.min.js antes de rol.js.');
+      return;
+    }
+    this.enemigo = null; // evitar referencias cíclicas
+    const data = JSON.parse(JSON.stringify(this)); // copia plana serializable
+    try {
+      await rqDB.personajes.put(data);
+      console.log(`saveDexie: personaje "${this.nombre}" guardado en IndexedDB.`);
+    } catch (error) {
+      console.error('saveDexie: error al guardar en IndexedDB:', error);
+    }
+  }
+
   cargarLocal(nombre = this.nombre) {
     this.setAll(JSON.parse(localStorage.getItem(nombre)))
   }
@@ -2517,6 +2552,37 @@ function cargaLocalObjeto(nombre) {
   }
 
 }
+
+/**
+ * Equivalente a cargaLocalObjeto pero usando Dexie (IndexedDB).
+ * Lee el registro por nombre, instancia la clase correcta y la puebla con setAll.
+ * @param {string} nombre del objeto con .clase a cargar
+ * @returns {Promise<object|undefined>} la instancia restaurada, o undefined si no existe
+ */
+async function cargaLocalDexie(nombre) {
+  if (!rqDB) {
+    console.warn('cargaLocalDexie: Dexie no está disponible.');
+    return;
+  }
+
+  const obj = await rqDB.personajes.get(nombre);
+  if (!obj) {
+    console.warn(`cargaLocalDexie: no se encontró "${nombre}" en IndexedDB.`);
+    return;
+  }
+
+  const clase = obj.clase;
+  if (clase) {
+    var o;
+    // eval(`o=new ${clase}({})`) //un poco más rápida pero menos segura
+    o = (Function('return new ' + clase))() //se supone que es más segura
+    o.setAll(obj);
+    console.log(o);
+    return o;
+  }
+}
+
+
 
 
 

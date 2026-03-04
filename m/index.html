@@ -15,9 +15,10 @@
     <script src="../js/localizaciones.js"></script>
     <script src="../js/armaduras.js"></script>
     <script src="../js/armas.js"></script>
+    <script src="https://unpkg.com/dexie/dist/dexie.min.js"></script>
     <script src="../js/rol.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@luncheon/simplify-svg-path@0.2.0"></script>
-    <script type="module"
+    <script
         src="https://cdn.jsdelivr.net/npm/@3d-dice/dice-box-threejs@0.0.12/dist/dice-box-threejs.es.min.js"></script>
 </head>
 
@@ -29,7 +30,7 @@
     <div id="arriba">
         <input type="datetime-local" name="fecha" id="fecha" step="1">
         <button class="map-button btn" id="bPlanificar" onclick="CharacterController.toggleRoutePlanning()">P</button>
-        <button class="map-button btn" id="bObjetivo" >◎</button>
+        <button class="map-button btn" id="bObjetivo">◎</button>
         <div id="routeSimulation" hidden>
             <div class="enlinea">
                 <input type="range" id="routeTime" min="0" max="0" step="1" value="0" class="slider">
@@ -83,7 +84,7 @@
                 </div>
                 <div class="option-row">
                     <label for="mostrarTarjeta" class="option-label">
-                        <input type="checkbox" id="mostrarTarjeta" >
+                        <input type="checkbox" id="mostrarTarjeta">
                         Mostrar tarjeta al seleccionar
                     </label>
                 </div>
@@ -94,6 +95,27 @@
                     </label>
                 </div>
 
+            </details>
+        </div>
+        <div id="dadosPanel">
+            <details>
+                <summary>Dados</summary>
+                <div class="option-row">
+                <div class="option-row">
+                    <label for="colorPickerUnits" class="option-label">Color unidades:</label>
+                    <input type="color" id="colorPickerUnits" value="#000000" >
+                </div>
+                <div class="option-row">
+                    <label for="colorPickerTens" class="option-label">Color decenas:</label>
+                    <input type="color" id="colorPickerTens"  value="#ff0000" >
+                </div>
+                <div class="option-row">
+                    <label for="dadoTxt" class="option-label">Dado:</label>
+                    <input type="text" id="dadoTxt"  value="1d100+1d10@70,7" >
+                    <button class="btn" id="tirarDado">🎲</button>
+                </div>
+
+                </div>
             </details>
         </div>
         <div id="layersPanel">
@@ -131,7 +153,8 @@
             </li>
             <li class="opcional" hidden id="showStats">Mostrar stats</li>
             <li class="opcional" hidden id="showCharacterCard">Mostrar tarjeta</li>
-            <li class="opcional" hidden id="inventario" hidden onclick="CharacterController.showStats('inventario')">Inventario</li>
+            <li class="opcional" hidden id="inventario" hidden onclick="CharacterController.showStats('inventario')">
+                Inventario</li>
             <li class="opcional" hidden id="exe">
                 <input type="text" name="" id="exeInput" placeholder="Ejecutar comando...">
                 <button id="exeBtn" onclick="             
