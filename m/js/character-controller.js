@@ -1192,6 +1192,9 @@ const CharacterController = {
             }
         });
         this.refreshRouteSimulationRange();
+        if (typeof MapController !== 'undefined') {
+            MapController.updateScaleBar(true);
+        }
     },
 
     /**
@@ -2367,4 +2370,3 @@ const CharacterUtils = {
         }
     }
 };
-

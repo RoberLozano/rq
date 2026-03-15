@@ -21,7 +21,13 @@ const MapController = {
     init() {
         this.mapContainer = document.getElementById("map-container");
         this.svgContainer = document.getElementById("svg-container");
+        this.scaleBarContainer = document.getElementById('map-scale');
+        this.scaleBarElement = document.getElementById('map-scale-bar');
+        this.scaleBarLabel = document.getElementById('map-scale-label');
+        this.lastScaleBarScale = null;
+        this.lastScaleBarDistanceFactor = null;
         this.setupEventListeners();
+        this.updateScaleBar(true);
     },
 
     grosorCamino(mult=1, pathElem){
@@ -445,6 +451,65 @@ const MapController = {
             svgElement.style.transform = `translate(${this.pointX}px, ${this.pointY}px) scale(${this.scale})`;
             CharacterController.updateTransformCharacters();
         }
+        this.updateScaleBar();
+    },
+
+    updateScaleBar(force = false) {
+        if (!this.scaleBarContainer || !this.scaleBarElement || !this.scaleBarLabel) return;
+
+        const distanceFactor = Number(CONFIG.distanceScaleFactor);
+        if (!Number.isFinite(this.scale) || this.scale <= 0 || !Number.isFinite(distanceFactor) || distanceFactor <= 0) {
+            this.scaleBarContainer.style.display = 'none';
+            return;
+        }
+
+        if (!force && this.lastScaleBarScale === this.scale && this.lastScaleBarDistanceFactor === distanceFactor) {
+            return;
+        }
+
+        const targetPixelLength = 120;
+        const metersPerPixel = distanceFactor / this.scale;
+        const targetMeters = targetPixelLength * metersPerPixel;
+        const scaleDistanceMeters = this.getNiceScaleDistance(targetMeters);
+        const barWidthPx = Math.max(24, scaleDistanceMeters / metersPerPixel);
+
+        this.scaleBarElement.style.width = `${barWidthPx.toFixed(0)}px`;
+        this.scaleBarLabel.textContent = this.formatScaleDistance(scaleDistanceMeters);
+        this.scaleBarContainer.style.display = 'block';
+
+        this.lastScaleBarScale = this.scale;
+        this.lastScaleBarDistanceFactor = distanceFactor;
+    },
+
+    getNiceScaleDistance(value) {
+        if (!Number.isFinite(value) || value <= 0) return 1;
+        const exponent = Math.floor(Math.log10(value));
+        const magnitude = 10 ** exponent;
+        const normalized = value / magnitude;
+        let rounded = 1;
+        if (normalized >= 5) {
+            rounded = 5;
+        } else if (normalized >= 2) {
+            rounded = 2;
+        }
+        return rounded * magnitude;
+    },
+
+    formatScaleDistance(distanceMeters) {
+        if (distanceMeters >= 1000) {
+            const km = distanceMeters / 1000;
+            if (km >= 10) return `${km.toFixed(0)} km`;
+            if (Number.isInteger(km)) return `${km.toFixed(0)} km`;
+            return `${km.toFixed(1)} km`;
+        }
+        if (distanceMeters >= 1) {
+            if (distanceMeters >= 10) return `${distanceMeters.toFixed(0)} m`;
+            return `${distanceMeters.toFixed(1)} m`;
+        }
+        const centimeters = distanceMeters * 100;
+        if (centimeters >= 1) return `${centimeters.toFixed(0)} cm`;
+        const millimeters = distanceMeters * 1000;
+        return `${millimeters.toFixed(0)} mm`;
     },
     
     /**
@@ -509,6 +574,7 @@ const MapController = {
             this.pointY = 0;
             this.scale = 1;
             this.setTransform();
+            this.updateScaleBar(true);
             
             LayerController.setupLayers();
             

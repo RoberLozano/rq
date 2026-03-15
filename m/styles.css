@@ -198,6 +198,35 @@ body {
     text-shadow: 0px 0px 2px black;
 }
 
+#map-scale {
+    position: fixed;
+    left: 20px;
+    bottom: 20px;
+    z-index: 900;
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    background: rgba(17, 17, 17, 0.75);
+    color: var(--text-color);
+    pointer-events: none;
+}
+
+#map-scale-label {
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    margin-bottom: 4px;
+    text-shadow: 0px 0px 2px black;
+}
+
+#map-scale-bar {
+    height: 8px;
+    border: 2px solid var(--text-color);
+    border-top: 0;
+    box-sizing: border-box;
+    min-width: 24px;
+}
+
 .enlinea {
     display: flex;
     align-items: center;
