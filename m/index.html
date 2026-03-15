@@ -110,6 +110,21 @@
                     <input type="color" id="colorPickerTens"  value="#ff0000" >
                 </div>
                 <div class="option-row">
+                    <label for="textureSelector" class="option-label">Textura dados:</label>
+                    <select id="textureSelector">
+                    </select>
+                </div>
+                <div class="option-row">
+                    <label for="materialSelector" class="option-label">Material dados:</label>
+                    <select id="materialSelector">
+                        <option value="glass">Vidrio</option>
+                        <option value="plastic">Plástico</option>
+                        <option value="metal">Metal</option>
+                        <option value="wood">Madera</option>
+                        <option value="none">Ninguno</option>
+                    </select>
+                </div>
+                <div class="option-row">
                     <label for="dadoTxt" class="option-label">Dado:</label>
                     <input type="text" id="dadoTxt"  value="1d100+1d10@70,7" >
                     <button class="btn" id="tirarDado">🎲</button>

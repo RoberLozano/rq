@@ -1,6 +1,5 @@
 import DiceBox from 'https://cdn.jsdelivr.net/npm/@3d-dice/dice-box-threejs@0.0.12/dist/dice-box-threejs.es.min.js';
 
-
 const diceContainer = document.getElementById('dice-container');
 const rollDiceButton = document.getElementById('rollDice');
 let unitsColor = colorPickerUnits.value;
@@ -86,7 +85,7 @@ async function initializeDiceBox() {
         spinForce: 0.05,
         throwForce: 5,
         lightIntensity: 1.3,
-        enableShadows: false,
+        enableShadows: true,
         shadowTransparency: 0.8,
         theme_customColorset: {
             background:tensColor,
@@ -118,7 +117,7 @@ async function initializeDiceBox() {
         spinForce: 0.05,
         throwForce: 5,
         lightIntensity: 1.3,
-        enableShadows: false,
+        enableShadows: true,
         shadowTransparency: 0.8,
         theme_customColorset: {
             background: unitsColor,
@@ -178,7 +177,7 @@ async function roll1d100() {
     hideDiceAndResultAfterDelay(2000);
 }
 
-function setDiceColor(type, color, numeros="#ffffff") {
+function setDiceColor(type, color, texture = "marble.webp", material = "glass", numeros="#ffffff") {
 
     console.log("Setdicecolor");
     
@@ -189,21 +188,24 @@ function setDiceColor(type, color, numeros="#ffffff") {
         normalizedColor = color;
     }
     
+    // Usar el nombre de textura sin extensión
+    const textureName = texture.replace('.webp', '');
+    
     const config = {
         theme_customColorset: {
             background: normalizedColor,
             foreground: numeros,
-            texture: "marble",
-            material: "glass"
+            texture: textureName,
+            material: material
         }
     };
     
     if (type === 'tens' && DiceBoxTens) {
         DiceBoxTens.updateConfig(config);
-        console.log(`Color de decenas cambiado a: ${normalizedColor}`);
+        console.log(`Color de decenas cambiado a: ${normalizedColor}, textura: ${textureName}, material: ${material}`);
     } else if (type === 'units' && DiceBoxUnits) {
         DiceBoxUnits.updateConfig(config);
-        console.log(`Color de unidades cambiado a: ${normalizedColor}`);
+        console.log(`Color de unidades cambiado a: ${normalizedColor}, textura: ${textureName}, material: ${material}`);
     } else {
         console.error(`Tipo de dado inválido: ${type}. Use 'tens' o 'units'.`);
     }
@@ -259,26 +261,118 @@ async function roll(dados) {
 
 }
 
+// Lista de texturas disponibles con traducciones al español
+const textureTranslations = {
+    'marble.webp': 'Mármol',
+    'ice.webp': 'Hielo',
+    'wood.webp': 'Madera',
+    'metal.webp': 'Metal',
+    'leopard.webp': 'Leopardo',
+    'cheetah.webp': 'Guepardo',
+    'tiger.webp': 'Tigre',
+    'stone.webp': 'Piedra',
+    'paper.webp': 'Papel',
+    'dragon.webp': 'Dragón',
+    'feather.webp': 'Pluma',
+    'fire.webp': 'Fuego',
+    'water.webp': 'Agua',
+    'stars.webp': 'Estrellas',
+    'skulls.webp': 'Calaveras',
+    'stainedglass.webp': 'Vitral',
+    'glitter.webp': 'Brillo',
+    'speckles.webp': 'Manchitas',
+    'noise.webp': 'Ruido',
+    'cloudy.webp': 'Nublado',
+    'bronze01.webp': 'Bronce 1',
+    'bronze02.webp': 'Bronce 2',
+    'bronze03.webp': 'Bronce 3',
+    'bronze04.webp': 'Bronce 4',
+    'bronze03a.webp': 'Bronce 3A',
+    'bronze03b.webp': 'Bronce 3B',
+    'astral.webp': 'Astral',
+    'cloudy.alt.webp': 'Nublado Alt',
+    'dragon-bump.webp': 'Dragón Relieve',
+    'feather-bump.webp': 'Pluma Relieve',
+    'glitter-alpha.webp': 'Brillo Alfa',
+    'glitter-bump.webp': 'Brillo Relieve',
+    'lizard.webp': 'Lagarto',
+    'lizard-bump.webp': 'Lagarto Relieve',
+    'metal-bump.webp': 'Metal Relieve',
+    'noise-thin-film.webp': 'Ruido Fino',
+    'paper-bump.webp': 'Papel Relieve',
+    'stainedglass-bump.webp': 'Vitral Relieve'
+};
+
+function getTextureList() {
+    return Object.keys(textureTranslations);
+}
+
+function getTextureDisplayName(filename) {
+    return textureTranslations[filename] || filename.replace('.webp', '').replace(/-/g, ' ');
+}
+
+function populateTextureSelector() {
+    const selector = document.getElementById('textureSelector');
+    if (!selector) return;
+
+    // Limpiar opciones existentes
+    selector.innerHTML = '';
+
+    // Agregar opción por defecto
+    const defaultOption = document.createElement('option');
+    defaultOption.value = 'marble.webp';
+    defaultOption.textContent = 'Mármol';
+    selector.appendChild(defaultOption);
+
+    // Agregar todas las texturas disponibles
+    getTextureList().forEach(texture => {
+        const option = document.createElement('option');
+        option.value = texture;
+        option.textContent = getTextureDisplayName(texture);
+        selector.appendChild(option);
+    });
+}
+
 async function main() {
     await initializeDiceBox();
+    populateTextureSelector(); // Llenar el selector de texturas
     rollDiceButton.addEventListener('click', roll1d100);
 
             document.getElementById('colorPickerUnits').addEventListener('change', () => {
             unitsColor = document.getElementById('colorPickerUnits').value;
             console.log(unitsColor);
-            setDiceColor('units', unitsColor);            
+            const texture = document.getElementById('textureSelector').value;
+            const material = document.getElementById('materialSelector').value;
+            setDiceColor('units', unitsColor, texture, material);
         }); 
 
         document.getElementById('colorPickerTens').addEventListener('change', () => {
             tensColor = document.getElementById('colorPickerTens').value;
             console.log(tensColor);
-            setDiceColor('tens', tensColor)
-        }); 
-
-        document.getElementById('tirarDado').addEventListener('click', () => {
-            roll(dadoTxt.value);
+            const texture = document.getElementById('textureSelector').value;
+            const material = document.getElementById('materialSelector').value;
+            setDiceColor('tens', tensColor, texture, material);
         });
-    //add event listener keyboard 'd'
+
+        // Event listener para el selector de textura
+        document.getElementById('textureSelector').addEventListener('change', () => {
+            const texture = document.getElementById('textureSelector').value;
+            console.log(`Textura cambiada a: ${texture}`);
+            // Aplicar la nueva textura a ambos dados con sus colores actuales
+            const material = document.getElementById('materialSelector').value;
+            setDiceColor('tens', tensColor, texture, material);
+            setDiceColor('units', unitsColor, texture, material);
+        });
+
+        // Event listener para el selector de material
+        document.getElementById('materialSelector').addEventListener('change', () => {
+            const material = document.getElementById('materialSelector').value;
+            console.log(`Material cambiado a: ${material}`);
+            // Aplicar el nuevo material a ambos dados con sus configuraciones actuales
+            const texture = document.getElementById('textureSelector').value;
+            setDiceColor('tens', tensColor, texture, material);
+            setDiceColor('units', unitsColor, texture, material);
+        });
     document.addEventListener('keydown', (event) => {
         if (event.key === 'd') {
             console.log("d PULSADO");
@@ -292,4 +386,6 @@ async function main() {
 }
 
 main();
+
+export { roll1d100 };
 

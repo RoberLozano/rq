@@ -1,0 +1,5 @@
+# Archivos secretos
+config-secret.js
+*-secret.js
+.env.local
+.env

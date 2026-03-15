@@ -36,6 +36,7 @@ const SyncController = {
                 });
             } else {
                 console.error('Firebase is not defined. Make sure to include the Firebase SDK.');
+                //Tal vez hacer con otro proveedor
                 this.syncButton.style.display = 'none';
             }
         } catch (e) {
