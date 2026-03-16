@@ -18,8 +18,7 @@
     <script src="https://unpkg.com/dexie/dist/dexie.min.js"></script>
     <script src="../js/rol.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@luncheon/simplify-svg-path@0.2.0"></script>
-    <script
-        src="https://cdn.jsdelivr.net/npm/@3d-dice/dice-box-threejs@0.0.12/dist/dice-box-threejs.es.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@3d-dice/dice-box-threejs@0.0.12/dist/dice-box-threejs.es.min.js"></script>
 </head>
 
 <body>
@@ -64,7 +63,7 @@
             <button class="map-button btn" id="zoomIn">+</button>
             <button class="map-button btn" id="zoomOut">-</button>
             <button class="map-button btn" id="resetView">Reset</button>
-            v 0.017
+            v 0.018
         </div>
         <button class="map-button btn" id="rollDice">Lanzar 1d100</button>
         <div id="searchBox">
@@ -131,7 +130,7 @@
                 <div class="option-row">
                     <label for="dadoTxt" class="option-label">Dado:</label>
                     <input type="text" id="dadoTxt"  value="1d100+1d10@70,7" >
-                    <button class="btn" id="tirarDado">🎲</button>
+                    <button class="btn" id="tirarDado" onclick="roll1d100()">🎲</button>
                 </div>
 
                 </div>

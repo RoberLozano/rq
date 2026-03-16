@@ -26,6 +26,7 @@ diceContainer.appendChild(unitsContainer);
 
 let DiceBoxTens, DiceBoxUnits;
 let diceResultOverlay;
+const diceAssetPath = new URL('../img/', import.meta.url).href;
 
 function showResultOverlay(text) {
     if (!diceResultOverlay) {
@@ -75,7 +76,7 @@ async function initializeDiceBox() {
  
     // Instancia para decenas (negro)
     DiceBoxTens = new DiceBox('#tens-container', {
-        assetPath: '/m/img/',
+        assetPath: diceAssetPath,
         gravity: 1,
         mass: 1,
         friction: 0.8,
@@ -107,7 +108,7 @@ async function initializeDiceBox() {
 
     // Instancia para unidades (rojo)
     DiceBoxUnits = new DiceBox('#units-container', {
-        assetPath: '/m/img/',
+        assetPath: diceAssetPath,
         gravity: 1,
         mass: 1,
         friction: 0.8,
@@ -388,4 +389,3 @@ async function main() {
 main();
 
 export { roll1d100 };
-
