@@ -73,7 +73,7 @@ async function initializeDiceBox() {
     console.log("initializeDiceBox");
     console.log(tensColor);
     console.log(unitsColor);
- 
+
     // Instancia para decenas (negro)
     DiceBoxTens = new DiceBox('#tens-container', {
         assetPath: diceAssetPath,
@@ -89,7 +89,7 @@ async function initializeDiceBox() {
         enableShadows: true,
         shadowTransparency: 0.8,
         theme_customColorset: {
-            background:tensColor,
+            background: tensColor,
             foreground: "#ffffff",
             texture: "marble",
             material: "glass"
@@ -138,7 +138,7 @@ async function initializeDiceBox() {
         }
     });
 
-    
+
     await Promise.all([
         DiceBoxTens.initialize(),
         DiceBoxUnits.initialize()
@@ -153,7 +153,7 @@ async function roll1d100() {
         return;
     }
     diceContainer.style.display = 'block';
-    
+
     // Lanzar ambos dados simultáneamente
     const [resultsTens, resultsUnits] = await Promise.all([
         DiceBoxTens.roll('1d10'),
@@ -178,20 +178,20 @@ async function roll1d100() {
     hideDiceAndResultAfterDelay(2000);
 }
 
-function setDiceColor(type, color, texture = "marble.webp", material = "glass", numeros="#ffffff") {
+function setDiceColor(type, color, texture = "marble.webp", material = "glass", numeros = "#ffffff") {
 
     console.log("Setdicecolor");
-    
+
     // Normalizar el color: si es un nombre, convertirlo a formato válido
     let normalizedColor = color;
     if (!color.startsWith('#')) {
         // Si no es hex, asumir que es un nombre de color válido para CSS
         normalizedColor = color;
     }
-    
+
     // Usar el nombre de textura sin extensión
     const textureName = texture.replace('.webp', '');
-    
+
     const config = {
         theme_customColorset: {
             background: normalizedColor,
@@ -200,7 +200,7 @@ function setDiceColor(type, color, texture = "marble.webp", material = "glass", 
             material: material
         }
     };
-    
+
     if (type === 'tens' && DiceBoxTens) {
         DiceBoxTens.updateConfig(config);
         console.log(`Color de decenas cambiado a: ${normalizedColor}, textura: ${textureName}, material: ${material}`);
@@ -339,45 +339,48 @@ async function main() {
     populateTextureSelector(); // Llenar el selector de texturas
     rollDiceButton.addEventListener('click', roll1d100);
 
-            document.getElementById('colorPickerUnits').addEventListener('change', () => {
-            unitsColor = document.getElementById('colorPickerUnits').value;
-            console.log(unitsColor);
-            const texture = document.getElementById('textureSelector').value;
-            const material = document.getElementById('materialSelector').value;
-            setDiceColor('units', unitsColor, texture, material);
-        }); 
+    document.getElementById('colorPickerUnits').addEventListener('change', () => {
+        unitsColor = document.getElementById('colorPickerUnits').value;
+        console.log(unitsColor);
+        const texture = document.getElementById('textureSelector').value;
+        const material = document.getElementById('materialSelector').value;
+        setDiceColor('units', unitsColor, texture, material);
+    });
 
-        document.getElementById('colorPickerTens').addEventListener('change', () => {
-            tensColor = document.getElementById('colorPickerTens').value;
-            console.log(tensColor);
-            const texture = document.getElementById('textureSelector').value;
-            const material = document.getElementById('materialSelector').value;
-            setDiceColor('tens', tensColor, texture, material);
-        });
+    document.getElementById('colorPickerTens').addEventListener('change', () => {
+        tensColor = document.getElementById('colorPickerTens').value;
+        console.log(tensColor);
+        const texture = document.getElementById('textureSelector').value;
+        const material = document.getElementById('materialSelector').value;
+        setDiceColor('tens', tensColor, texture, material);
+    });
 
-        // Event listener para el selector de textura
-        document.getElementById('textureSelector').addEventListener('change', () => {
-            const texture = document.getElementById('textureSelector').value;
-            console.log(`Textura cambiada a: ${texture}`);
-            // Aplicar la nueva textura a ambos dados con sus colores actuales
-            const material = document.getElementById('materialSelector').value;
-            setDiceColor('tens', tensColor, texture, material);
-            setDiceColor('units', unitsColor, texture, material);
-        });
+    // Event listener para el selector de textura
+    document.getElementById('textureSelector').addEventListener('change', () => {
+        const texture = document.getElementById('textureSelector').value;
+        console.log(`Textura cambiada a: ${texture}`);
+        // Aplicar la nueva textura a ambos dados con sus colores actuales
+        const material = document.getElementById('materialSelector').value;
+        setDiceColor('tens', tensColor, texture, material);
+        setDiceColor('units', unitsColor, texture, material);
+    });
 
-        // Event listener para el selector de material
-        document.getElementById('materialSelector').addEventListener('change', () => {
-            const material = document.getElementById('materialSelector').value;
-            console.log(`Material cambiado a: ${material}`);
-            // Aplicar el nuevo material a ambos dados con sus configuraciones actuales
-            const texture = document.getElementById('textureSelector').value;
-            setDiceColor('tens', tensColor, texture, material);
-            setDiceColor('units', unitsColor, texture, material);
-        });
+    // Event listener para el selector de material
+    document.getElementById('materialSelector').addEventListener('change', () => {
+        const material = document.getElementById('materialSelector').value;
+        console.log(`Material cambiado a: ${material}`);
+        // Aplicar el nuevo material a ambos dados con sus configuraciones actuales
+        const texture = document.getElementById('textureSelector').value;
+        setDiceColor('tens', tensColor, texture, material);
+        setDiceColor('units', unitsColor, texture, material);
+    });
+
+    tirarDado.addEventListener('click', () => {
+        roll(dadoTxt.value);
+    });
     document.addEventListener('keydown', (event) => {
         if (event.key === 'd') {
             console.log("d PULSADO");
-
             // roll('1d100+1d10@70,7');
             roll(dadoTxt.value);
             // setDiceColor('units','yellow');
