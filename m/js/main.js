@@ -415,11 +415,11 @@ function filterNpcs() {
 }
 
 
-async function ejecutarModulo() {
+async function ejecutarModulo(tirada) {
   // Importamos el archivo dinámicamente
   const modulo = await import('./dice-roller.js');
   
   // Usamos el método exportado
-  modulo.roll1d100();
+  console.log(await modulo.roll1d100(tirada));
 }
 

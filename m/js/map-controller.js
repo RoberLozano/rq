@@ -386,9 +386,10 @@ const MapController = {
      * @param {number} factor - Zoom factor
      */
     zoomIn(factor) {
+        const f = (typeof factor === 'number' && isFinite(factor)) ? factor : CONFIG.zoomInFactor;
         this.zoomToPoint(
             { x: window.innerWidth / 2, y: window.innerHeight / 2 }, 
-            factor||CONFIG.zoomInFactor
+            f
         );
     },
     

@@ -6,6 +6,140 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mobile Map</title>
     <link rel="stylesheet" href="styles.css">
+    <style>
+        /* ── Voice Controller UI ── */
+        #voiceBtn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 10001;
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(30, 30, 40, 0.85);
+            backdrop-filter: blur(8px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+            cursor: pointer;
+            font-size: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
+            color: #fff;
+        }
+
+        #voiceBtn:hover {
+            transform: scale(1.08);
+            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+        }
+
+        #voiceBtn.voice-active {
+            background: rgba(200, 30, 30, 0.9);
+            animation: voice-pulse 1.2s infinite;
+        }
+
+        #voiceBtn.voice-error {
+            background: rgba(180, 60, 0, 0.9);
+        }
+
+        @keyframes voice-pulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(220, 40, 40, 0.6);
+            }
+
+            50% {
+                box-shadow: 0 0 0 10px rgba(220, 40, 40, 0);
+            }
+        }
+
+        /* Toast de feedback */
+        #voiceToast {
+            position: fixed;
+            bottom: 82px;
+            right: 16px;
+            z-index: 10001;
+            background: rgba(20, 20, 30, 0.88);
+            color: #eee;
+            font-size: 13px;
+            padding: 7px 14px;
+            border-radius: 20px;
+            backdrop-filter: blur(6px);
+            max-width: 280px;
+            text-align: center;
+            opacity: 0;
+            transform: translateY(6px);
+            transition: opacity 0.2s, transform 0.2s;
+            pointer-events: none;
+        }
+
+        #voiceToast.voice-toast-visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Panel de ayuda de voz */
+        #voiceHelpPanel {
+            position: fixed;
+            bottom: 82px;
+            right: 80px;
+            z-index: 10001;
+            background: rgba(20, 20, 32, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 12px;
+            padding: 14px 16px;
+            max-width: 300px;
+            max-height: 60vh;
+            overflow-y: auto;
+            display: none;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            color: #ddd;
+            font-size: 12.5px;
+            line-height: 1.7;
+        }
+
+        #voiceHelpPanel h4 {
+            margin: 0 0 8px;
+            color: #fff;
+            font-size: 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+            padding-bottom: 6px;
+        }
+
+        #voiceHelpPanel li {
+            list-style: none;
+            padding: 2px 0;
+        }
+
+        #voiceHelpPanel li::before {
+            content: '🎤 ';
+        }
+
+        #voiceHelpToggle {
+            position: fixed;
+            bottom: 20px;
+            right: 80px;
+            z-index: 10001;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(30, 30, 40, 0.8);
+            backdrop-filter: blur(6px);
+            color: #ccc;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        #voiceHelpToggle:hover {
+            background: rgba(60, 60, 80, 0.9);
+            color: #fff;
+        }
+    </style>
     <script src="https://www.gstatic.com/firebasejs/4.7.0/firebase.js"></script>
     <script src="../js/coor.js"></script>
     <script src="../js/utils.js"></script>
@@ -18,7 +152,7 @@
     <script src="https://unpkg.com/dexie/dist/dexie.min.js"></script>
     <script src="../js/rol.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@luncheon/simplify-svg-path@0.2.0"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@3d-dice/dice-box-threejs@0.0.12/dist/dice-box-threejs.es.min.js"></script>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/@3d-dice/dice-box-threejs@0.0.12/dist/dice-box-threejs.es.min.js"></script> -->
 </head>
 
 <body>
@@ -60,10 +194,10 @@
             </label>
             <input type="file" id="characterInput" accept="image/*" multiple style="display: none;">
             <button class="map-button btn" id="addNpcBtn">Add NPC</button>
-            <button class="map-button btn" id="zoomIn">+</button>
+            <button class="map-button btn" id="zoomIn">+ Más puto zoom para qeu quepa todo</button>
             <button class="map-button btn" id="zoomOut">-</button>
             <button class="map-button btn" id="resetView">Reset</button>
-            v 0.018
+            v 0.019
         </div>
         <button class="map-button btn" id="rollDice">Lanzar 1d100</button>
         <div id="searchBox">
@@ -104,34 +238,34 @@
             <details>
                 <summary>Dados</summary>
                 <div class="option-row">
-                <div class="option-row">
-                    <label for="colorPickerUnits" class="option-label">Color unidades:</label>
-                    <input type="color" id="colorPickerUnits" value="#000000" >
-                </div>
-                <div class="option-row">
-                    <label for="colorPickerTens" class="option-label">Color decenas:</label>
-                    <input type="color" id="colorPickerTens"  value="#ff0000" >
-                </div>
-                <div class="option-row">
-                    <label for="textureSelector" class="option-label">Textura dados:</label>
-                    <select id="textureSelector">
-                    </select>
-                </div>
-                <div class="option-row">
-                    <label for="materialSelector" class="option-label">Material dados:</label>
-                    <select id="materialSelector">
-                        <option value="glass">Vidrio</option>
-                        <option value="plastic">Plástico</option>
-                        <option value="metal">Metal</option>
-                        <option value="wood">Madera</option>
-                        <option value="none">Ninguno</option>
-                    </select>
-                </div>
-                <div class="option-row">
-                    <label for="dadoTxt" class="option-label">Dado:</label>
-                    <input type="text" id="dadoTxt"  value="1d100+1d10@70,7" >
-                    <button class="btn" id="tirarDado" >🎲</button>
-                </div>
+                    <div class="option-row">
+                        <label for="colorPickerUnits" class="option-label">Color unidades:</label>
+                        <input type="color" id="colorPickerUnits" value="#000000">
+                    </div>
+                    <div class="option-row">
+                        <label for="colorPickerTens" class="option-label">Color decenas:</label>
+                        <input type="color" id="colorPickerTens" value="#ff0000">
+                    </div>
+                    <div class="option-row">
+                        <label for="textureSelector" class="option-label">Textura dados:</label>
+                        <select id="textureSelector">
+                        </select>
+                    </div>
+                    <div class="option-row">
+                        <label for="materialSelector" class="option-label">Material dados:</label>
+                        <select id="materialSelector">
+                            <option value="glass">Vidrio</option>
+                            <option value="plastic">Plástico</option>
+                            <option value="metal">Metal</option>
+                            <option value="wood">Madera</option>
+                            <option value="none">Ninguno</option>
+                        </select>
+                    </div>
+                    <div class="option-row">
+                        <label for="dadoTxt" class="option-label">Dado:</label>
+                        <input type="text" id="dadoTxt" value="1d100+1d10@70,7">
+                        <button class="btn" id="tirarDado">🎲</button>
+                    </div>
 
                 </div>
             </details>
@@ -274,6 +408,46 @@
     <script src="js/sync-controller.js"></script>
     <script src="js/main.js"></script>
     <script type="module" src="js/dice-roller.js"></script>
+    <script src="js/voice-controller.js"></script>
+
+    <!-- ── Interfaz de voz ─────────────────────────────────────── -->
+    <!-- Toast de retroalimentación -->
+    <div id="voiceToast"></div>
+
+    <!-- Botón de micrófono flotante -->
+    <button id="voiceBtn" title="Activar/Desactivar control por voz">
+        <span id="voiceIndicator">🎤</span>
+    </button>
+
+    <!-- Botón de ayuda de comandos -->
+    <button id="voiceHelpToggle" title="Comandos de voz disponibles">?</button>
+
+    <!-- Panel de ayuda desplegable -->
+    <div id="voiceHelpPanel">
+        <h4>🎙️ Comandos de voz</h4>
+        <ul id="voiceHelpList"></ul>
+    </div>
+
+    <script>
+        // Poblar el panel de ayuda una vez cargado el controlador
+        document.addEventListener('DOMContentLoaded', () => {
+            const list = document.getElementById('voiceHelpList');
+            const panel = document.getElementById('voiceHelpPanel');
+            const helpBtn = document.getElementById('voiceHelpToggle');
+
+            if (list && typeof VoiceController !== 'undefined') {
+                VoiceController.getComandos().forEach(txt => {
+                    const li = document.createElement('li');
+                    li.textContent = txt;
+                    list.appendChild(li);
+                });
+            }
+
+            helpBtn?.addEventListener('click', () => {
+                panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+            });
+        });
+    </script>
 </body>
 
 </html>
