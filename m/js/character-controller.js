@@ -108,12 +108,12 @@ const CharacterController = {
         this.updateRoutePlanningLabel();
         if (!this.routePlanningMode) {
             this.finalizePlannedRoutes();
-            routeSimulation.hidden=true;
+            routeSimulation.hidden = true;
             console.log("qacabado");
         }
         else
-            routeSimulation.hidden=false;
-     
+            routeSimulation.hidden = false;
+
     },
 
     updateRoutePlanningLabel() {
@@ -461,8 +461,8 @@ const CharacterController = {
             charElement.classList.add('selected');
             //si esta abierto la tarjeta de personaje
             console.log(id + 'selected');
-            if( mostrarTarjeta.checked)
-            this.showCharacterCard(charElement.p);
+            if (mostrarTarjeta.checked)
+                this.showCharacterCard(charElement.p);
         }
         this.drawSelectionCircle(charElement.querySelector('image'));
     },
@@ -471,7 +471,7 @@ const CharacterController = {
         if (!this.activeCharacter) return;
         let personaje = this.activeCharacter.nombre;
         let pe = this.personajes.get(personaje);
-        
+
         if (campo === 'modal') {
             // Mostrar en el modal original
             document.getElementById('infoTitle').innerHTML =
@@ -485,11 +485,11 @@ const CharacterController = {
             infoModal.style.display = 'block';
             return;
         }
-        
+
         // Mostrar en la tarjeta de características
         this.showCharacterCard(pe);
     },
-    
+
     /**
      * Muestra la tarjeta de características del personaje
      * @param {Object} personaje - El objeto personaje
@@ -499,15 +499,15 @@ const CharacterController = {
         const characterName = document.getElementById('characterName');
         const statsGrid = document.querySelector('.stats-grid');
         const bodyDamageList = document.getElementById('bodyDamageList');
-        
+
         // Establecer el nombre del personaje
         characterName.textContent = personaje.nombre;
-        
+
         // Limpiar contenido anterior
         statsGrid.innerHTML = '';
-        weaponContainer.innerHTML='';
+        weaponContainer.innerHTML = '';
         bodyDamageList.innerHTML = '';
-        
+
         // Mostrar características principales
         const mainStats = ['FUE', 'CON', 'DES', 'PG'];
         mainStats.forEach(stat => {
@@ -518,11 +518,86 @@ const CharacterController = {
             statsGrid.appendChild(statItem);
         });
 
-        personaje.inventario.darClaseRecursiva(Arma).forEach(element => {
-            weaponContainer.innerHTML+=element.toString() + "->";
-            if (personaje.getHabilidad(element.nombre))  weaponContainer.innerHTML+=personaje.getHabilidad(element.nombre).t + '<br>';
-            
+        // Crear combo box para las armas
+        const weaponSelect = document.createElement('select');
+        weaponSelect.id = 'weapon-select';
+        weaponSelect.className = 'weapon-select';
+        weaponSelect.style.width = '100%';
+        weaponSelect.style.padding = '8px';
+        weaponSelect.style.marginBottom = '10px';
+        weaponSelect.style.fontSize = '14px';
+
+        // Opción por defecto
+        const defaultOption = document.createElement('option');
+        defaultOption.textContent = '-- Selecciona un arma --';
+        defaultOption.value = '';
+        weaponSelect.appendChild(defaultOption);
+
+        // Llenar el combo box con las armas
+        const armas = personaje.inventario.darClaseRecursiva(Arma);
+        armas.forEach(element => {
+            const option = document.createElement('option');
+            option.textContent = element.nombre;
+            option.value = element.nombre;
+            weaponSelect.appendChild(option);
         });
+
+        weaponContainer.appendChild(weaponSelect);
+
+        // Contenedor para mostrar los chips de daño del arma seleccionada
+        const damageChipsContainer = document.createElement('div');
+        damageChipsContainer.id = 'damage-chips-container';
+        damageChipsContainer.style.marginTop = '10px';
+        damageChipsContainer.style.minHeight = '30px';
+        weaponContainer.appendChild(damageChipsContainer);
+
+        // Evento al cambiar la selección del combo box
+        weaponSelect.onchange = () => {
+            const selectedWeaponName = weaponSelect.value;
+            damageChipsContainer.innerHTML = '';
+
+            if (selectedWeaponName) {
+                const selectedWeapon = armas.find(a => a.nombre === selectedWeaponName);
+                if (selectedWeapon) {
+                    // Mostrar chips de daño
+                    if (selectedWeapon.daños && selectedWeapon.daños.length > 0) {
+                        selectedWeapon.daños.forEach(daño => {
+                            const damageChip = document.createElement('span');
+                            damageChip.className = 'damage-chip';
+                            damageChip.textContent = `${daño.dado} (${daño.tipo})`;
+
+                            // Estilo visual para el chip
+                            damageChip.style.display = 'inline-block';
+                            damageChip.style.padding = '4px 8px';
+                            damageChip.style.margin = '2px';
+                            damageChip.style.backgroundColor = '#e0e0e0';
+                            damageChip.style.border = '1px solid #999';
+                            damageChip.style.borderRadius = '4px';
+                            damageChip.style.cursor = 'pointer';
+                            damageChip.style.fontSize = '12px';
+                            damageChip.style.color = '#333';
+
+                            damageChip.onclick = () => {
+                                import('./dice-roller.js').then(modulo => {
+                                    modulo.roll(daño.dado);
+                                }).catch(err => console.error('Error al importar dice-roller:', err));
+                            };
+
+                            damageChipsContainer.appendChild(damageChip);
+                        });
+                    }
+
+                    // Mostrar habilidad si existe
+                    if (personaje.getHabilidad(selectedWeapon.nombre)) {
+                        const habilidadSpan = document.createElement('div');
+                        habilidadSpan.style.marginTop = '5px';
+                        habilidadSpan.style.fontSize = '13px';
+                        habilidadSpan.textContent = 'Habilidad: ' + personaje.getHabilidad(selectedWeapon.nombre).t;
+                        damageChipsContainer.appendChild(habilidadSpan);
+                    }
+                }
+            }
+        };
 
         // Dibujar el daño en el canvas
         const zoomCuerpo = 1; // Escala para el dibujo del cuerpo
@@ -547,7 +622,7 @@ const CharacterController = {
         } else {
             bodyDamageList.innerHTML = '<div class="damage-item">No hay información de cuerpo</div>';
         }
-        
+
         // Mostrar la tarjeta
         characterCard.style.display = 'block';
 
@@ -625,76 +700,332 @@ const CharacterController = {
         // Configurar pestañas
         this.setupCharacterCardTabs();
     },
-    
+
     /**
-     * Muestra el modal de ataque para seleccionar la localización y aplicar daño
-     * @param {Object} attackerPersonaje - El personaje que ataca
-     * @param {Object} targetPersonaje - El personaje objetivo del ataque
+     * Obtiene las armas disponibles para un personaje
      */
-    showAttackModal(attackerPersonaje, targetPersonaje) {
-        // Crear el modal si no existe
+    getArmasPersonaje(personaje) {
+        return personaje?.inventario?.darClaseRecursiva?.(Arma) || [];
+    },
+
+    /**
+     * Obtiene las habilidades marciales ofensivas de un personaje
+     */
+    getHabilidadesOfensivasPersonaje(personaje, arma) {
+        if (!personaje?.getHabilidades) return [];
+        return personaje.getHabilidades(h => (h instanceof HabilidadMarcial || h.clase === 'HabilidadMarcial') && h.ataque !== false);
+    },
+
+    /**
+     * Obtiene las habilidades defensivas (Parada y Esquiva con %) de un personaje
+     */
+    getHabilidadesDefensivasPersonaje(personaje, armaAtacante) {
+        if (!personaje?.getHabilidades) return [];
+        const defensivas = [];
+        const esquivar = personaje.getHabilidad?.('Esquivar');
+        if (esquivar) defensivas.push(esquivar);
+        personaje.getHabilidades().filter(h =>
+            h.nombre?.toLowerCase().includes('(def)') || ((h instanceof Tecnica || h.clase === 'Tecnica') && h.ataque === false)
+        ).forEach(h => {
+            if (!defensivas.includes(h)) defensivas.push(h);
+        });
+        return defensivas;
+    },
+
+    /**
+     * Muestra el modal de ataque
+     */
+    showAttackModal(attackerPersonaje, targetPersonaje, targetElement = null) {
         if (!document.getElementById('attackModal')) {
             this.createAttackModal();
         }
-        
-        const attackModal = document.getElementById('attackModal');
-        const attackerName = document.getElementById('attackerName');
-        const targetName = document.getElementById('targetName');
-        const locationSelect = document.getElementById('attackLocation');
-        const locationRoll = document.getElementById('attackLocationRoll');
-        
-        // Establecer nombres
-        attackerName.textContent = attackerPersonaje.nombre;
-        targetName.textContent = targetPersonaje.nombre;
-        
-        // Limpiar y llenar el selector de localizaciones
-        locationSelect.innerHTML = '';
-        targetPersonaje.cuerpo.todas().forEach(loc => {
-            const option = document.createElement('option');
-            option.value = loc.nombre;
-            option.textContent = `${loc.nombre} (${loc.daño}/${loc.pg})`;
-            option.dataset.min = loc.min;
-            option.dataset.max = loc.max;
-            locationSelect.appendChild(option);
-        });
-        
-        // Actualizar el valor del roll con el rango de la primera localización
-        const firstOption = locationSelect.firstElementChild;
-        if (firstOption) {
-            locationRoll.value = firstOption.dataset.min;
-        }
-        
-        // Guardar referencia a los elementos HTML de los personajes en el modal
-        attackModal.dataset.attacker = this.attackingCharacter.id;
-        
-        // Buscar el elemento HTML del personaje objetivo por su nombre
-        // El atributo data-name está en la imagen, no en el grupo
-        const targetImages = document.querySelectorAll('image[data-name]');
-        let targetElement = null;
-        
-        for (const img of targetImages) {
-            if (img.getAttribute('data-name') === targetPersonaje.nombre) {
-                // Obtener el grupo padre que es el elemento del personaje
-                targetElement = img.closest('.character');
-                break;
-            }
-        }
-        
-        if (targetElement) {
-            attackModal.dataset.target = targetElement.id;
-            console.log('Target element ID:', attackModal.dataset.target);
-        } else {
-            console.log('No se encontró el elemento HTML para el personaje:', targetPersonaje.nombre);
-        }
-        
-        
-        // Mostrar el modal
-        attackModal.style.display = 'block';
-        
-        // Cancelar el modo de ataque
+
+        const modal = document.getElementById('attackModal');
+        targetElement ||= Array.from(this.characters.values()).find(char =>
+            char === targetPersonaje?.element || char.p === targetPersonaje || char.nombre === targetPersonaje?.nombre
+        ) || null;
+        this.currentCombat = {
+            attackerPersonaje,
+            targetPersonaje,
+            attackerElement: this.attackingCharacter,
+            targetElement,
+            results: { attack: null, defense: null, technique: null, defenseTechnique: null }
+        };
+
+        this.populateCombatSection(attackerPersonaje, targetPersonaje);
+        this.updateCombatElementIds();
+        document.body.classList.add('combat-modal-open');
+        modal.style.display = 'flex';
         this.cancelAttackMode();
     },
-    
+
+    /**
+     * Rellena el flujo compartido de ataque, defensa y daño
+     */
+    populateCombatSection(attackerPersonaje, targetPersonaje) {
+        const modal = document.getElementById('attackModal');
+        const attackerName = modal.querySelector('#combatAttackerName');
+        const targetName = modal.querySelector('#combatTargetName');
+        attackerName.textContent = attackerPersonaje.nombre;
+        attackerName.href = `../vue.html?pj=${encodeURIComponent(attackerPersonaje.nombre)}`;
+        targetName.textContent = targetPersonaje.nombre;
+        targetName.href = `../vue.html?pj=${encodeURIComponent(targetPersonaje.nombre)}`;
+
+        const combat = this.currentCombat;
+        combat.results = { attack: null, defense: null, technique: null, defenseTechnique: null };
+        const weaponSelect = modal.querySelector('#combatWeapon');
+        const attackSkillSelect = modal.querySelector('#combatAttackSkill');
+        const attackSkillContainer = modal.querySelector('#combatAttackRoll');
+        const techniqueSelect = modal.querySelector('#combatTechnique');
+        const techniqueContainer = modal.querySelector('#combatTechniqueRoll');
+        const defenseTechniqueSelect = modal.querySelector('#combatDefenseTechnique');
+        const defenseTechniqueContainer = modal.querySelector('#combatDefenseTechniqueRoll');
+        const defendWeaponSelect = modal.querySelector('#combatDefenseWeapon');
+        const defenseSkillSelect = modal.querySelector('#combatDefenseSkill');
+        const defenseContainer = modal.querySelector('#combatDefenseRoll');
+        const damageTypeSelect = modal.querySelector('#combatDamageType');
+        const damageInput = modal.querySelector('#combatDamage');
+        const applyButton = modal.querySelector('#applyCombatDamage');
+        damageInput.value = 0;
+        modal.querySelector('#combatTechniqueAdjustment').value = 0;
+        modal.querySelector('#combatTechniqueTarget').value = 'attack';
+        modal.querySelector('#combatNoDefense').checked = false;
+        let lastDamageGrade = null;
+
+        const attackerWeapons = this.getArmasPersonaje(attackerPersonaje);
+        const attackerSkills = this.getHabilidadesOfensivasPersonaje(attackerPersonaje)
+            .filter(skill => !(skill instanceof Tecnica) && skill.clase !== 'Tecnica');
+        const techniques = this.getHabilidadesOfensivasPersonaje(attackerPersonaje)
+            .filter(skill => skill instanceof Tecnica || skill.clase === 'Tecnica');
+
+        weaponSelect.innerHTML = attackerWeapons.length
+            ? attackerWeapons.map((weapon, index) => `<option value="${index}">${weapon.nombre}</option>`).join('')
+            : '<option value="">(Sin armas)</option>';
+        attackSkillSelect.innerHTML = attackerSkills.length
+            ? attackerSkills.map(skill => `<option value="${skill.nombre}">${skill.nombre} (${skill.v ?? skill.valor}%)</option>`).join('')
+            : '<option value="">(Sin habilidades de ataque)</option>';
+        techniqueSelect.innerHTML = '<option value="">Sin Técnica</option>' + techniques
+            .map(skill => `<option value="${skill.nombre}">${skill.nombre} (${skill.v ?? skill.valor}%) · PF ${skill.pf || 0}</option>`).join('');
+
+        const defenderWeapons = this.getArmasPersonaje(targetPersonaje);
+        const defensiveOptions = this.getHabilidadesDefensivasPersonaje(targetPersonaje, attackerWeapons[0]);
+        const isTechnique = skill => skill instanceof Tecnica || skill.clase === 'Tecnica';
+        const defenseTechniques = defensiveOptions.filter(isTechnique);
+        const defenseSkills = defensiveOptions.filter(skill => !isTechnique(skill));
+        defendWeaponSelect.innerHTML = defenderWeapons.length
+            ? defenderWeapons.map((weapon, index) => `<option value="${index}">${weapon.nombre}</option>`).join('')
+            : '<option value="">(Sin armas)</option>';
+        defenseSkillSelect.innerHTML = defenseSkills.length
+            ? defenseSkills.map(skill => `<option value="${skill.nombre}">${skill.nombre} (${skill.v ?? skill.valor}%)</option>`).join('')
+            : '<option value="">(Sin habilidad defensiva)</option>';
+        defenseTechniqueSelect.innerHTML = '<option value="">Sin Técnica defensiva</option>' + defenseTechniques
+            .map(skill => `<option value="${skill.nombre}">${skill.nombre} (${skill.v ?? skill.valor}%) · PF ${skill.pf || 0}</option>`).join('');
+
+        const syncDamage = (degree) => {
+            const weapon = attackerWeapons[weaponSelect.value] || attackerWeapons[0];
+            if (!weapon?.daño || degree < TipoTirada.EXITO) {
+                damageInput.value = 0;
+                lastDamageGrade = degree;
+                return;
+            }
+            if (damageTypeSelect.value !== '') {
+                const damageIndex = parseInt(damageTypeSelect.value, 10);
+                if (Number.isInteger(damageIndex)) weapon.daño = damageIndex;
+            }
+            damageInput.value = weapon.daño.tirar(degree);
+            lastDamageGrade = degree;
+        };
+
+        const updateResolution = () => {
+            const results = combat.results;
+            const noDefense = modal.querySelector('#combatNoDefense').checked;
+            const techniqueAdjustmentInput = modal.querySelector('#combatTechniqueAdjustment');
+            const techniqueTargetSelect = modal.querySelector('#combatTechniqueTarget');
+            const techniqueSucceeded = results.technique !== null && results.technique >= TipoTirada.EXITO;
+            const defenseTechniqueAdjustmentInput = modal.querySelector('#combatDefenseTechniqueAdjustment');
+            const defenseTechniqueTargetSelect = modal.querySelector('#combatDefenseTechniqueTarget');
+            const defenseTechniqueSucceeded = results.defenseTechnique !== null && results.defenseTechnique >= TipoTirada.EXITO;
+            techniqueAdjustmentInput.disabled = !techniqueSelect.value || !techniqueSucceeded;
+            techniqueTargetSelect.disabled = !techniqueSelect.value || !techniqueSucceeded;
+            defenseTechniqueAdjustmentInput.disabled = !defenseTechniqueSelect.value || !defenseTechniqueSucceeded;
+            defenseTechniqueTargetSelect.disabled = !defenseTechniqueSelect.value || !defenseTechniqueSucceeded;
+            const { attackGrade, defenseGrade, effectiveAttack, effectiveDefense } = this.getCombatAdjustedGrades(combat, modal);
+            const finalGrade = this.getCombatResultGrade(effectiveAttack, effectiveDefense);
+
+            modal.querySelector('#combatAttackGrade').textContent = attackGrade === null ? 'Pendiente' : TipoTirada.tirada[attackGrade];
+            modal.querySelector('#combatDefenseGrade').textContent = noDefense || !defenseSkillSelect.value
+                ? 'Sin parada/esquiva'
+                : defenseGrade === null ? 'Pendiente' : TipoTirada.tirada[defenseGrade];
+            modal.querySelector('#combatTechniqueGrade').textContent = `Atq: ${results.technique === null ? '—' : TipoTirada.tirada[results.technique]} · Def: ${results.defenseTechnique === null ? '—' : TipoTirada.tirada[results.defenseTechnique]}`;
+            modal.querySelector('#combatFinalGrade').textContent = finalGrade === null ? 'Pendiente' : TipoTirada.tirada[finalGrade];
+            modal.querySelector('#combatResolutionDetail').textContent = finalGrade === null
+                ? 'Completa las tiradas de ataque y defensa, o marca que no hay defensa.'
+                : `Ataque ${TipoTirada.tirada[effectiveAttack]} − ${noDefense || !defenseSkillSelect.value ? 'sin parada/esquiva' : `defensa ${TipoTirada.tirada[effectiveDefense]}`}`;
+
+            const canApplyDamage = finalGrade !== null && finalGrade >= TipoTirada.EXITO;
+            applyButton.disabled = !canApplyDamage;
+            if (!canApplyDamage && damageInput.value !== '0') syncDamage(finalGrade ?? TipoTirada.FALLO);
+            if (canApplyDamage && lastDamageGrade !== finalGrade) syncDamage(finalGrade);
+            return finalGrade;
+        };
+
+        const attachRoll = (skill, character, container, resultKey, weapon) => {
+            container.innerHTML = '';
+            if (!skill) {
+                combat.results[resultKey] = null;
+                updateResolution();
+                return;
+            }
+            if (weapon && (skill instanceof HabilidadMarcial || skill.clase === 'HabilidadMarcial' || skill.clase === 'Tecnica')) {
+                skill.arma = weapon;
+            }
+            const inputHab = new InputHabilidadModificable(skill, true);
+            inputHab.setPersonaje(character);
+            inputHab.setHabilidad(skill);
+            const originalAct = inputHab.act.bind(inputHab);
+            inputHab.act = input => {
+                const degree = originalAct(input);
+                combat.results[resultKey] = Number.isInteger(degree) ? degree : null;
+                updateResolution();
+                return degree;
+            };
+            container.appendChild(inputHab);
+        };
+
+        const updateAttackSkill = (preferWeaponSkill = false) => {
+            const weapon = attackerWeapons[weaponSelect.value] || attackerWeapons[0];
+            const weaponSkillNames = [weapon?.Habilidad, weapon?.Habilidad && `${weapon.Habilidad} D`, weapon?.Habilidad && `${weapon.Habilidad} I`, weapon?.nombre && `${weapon.nombre} D`, weapon?.nombre && `${weapon.nombre} I`]
+                .filter(Boolean).map(name => name.toLowerCase());
+            const weaponSkill = attackerSkills.find(item => weaponSkillNames.includes(item.nombre.toLowerCase()));
+            if (preferWeaponSkill && weaponSkill) attackSkillSelect.value = weaponSkill.nombre;
+            const skill = attackerSkills.find(item => item.nombre === attackSkillSelect.value) || weaponSkill || attackerSkills[0];
+            combat.results.attack = null;
+            attachRoll(skill, attackerPersonaje, attackSkillContainer, 'attack', weapon);
+            updateWeaponDamage();
+            updateResolution();
+        };
+
+        const updateWeaponDamage = () => {
+            const weapon = attackerWeapons[weaponSelect.value] || attackerWeapons[0];
+            const damageOptions = weapon?.daños || [];
+            damageTypeSelect.innerHTML = damageOptions.length
+                ? damageOptions.map((damage, index) => `<option value="${index}" ${index === (weapon.index ?? 0) ? 'selected' : ''}>${damage.dado}${damage.tipo ? ` [${damage.tipo}]` : ''}</option>`).join('')
+                : '<option value="">(Sin daño)</option>';
+            lastDamageGrade = null;
+            const finalGrade = updateResolution();
+            if (finalGrade !== null && finalGrade >= TipoTirada.EXITO) syncDamage(finalGrade);
+        };
+
+        const updateDefenseSkill = () => {
+            const weapon = defenderWeapons[defendWeaponSelect.value] || defenderWeapons[0];
+            const skill = defenseSkills.find(item => item.nombre === defenseSkillSelect.value) || defenseSkills[0];
+            combat.results.defense = null;
+            attachRoll(skill, targetPersonaje, defenseContainer, 'defense', weapon);
+        };
+
+        const updateDefenseWeapon = () => {
+            const weapon = defenderWeapons[defendWeaponSelect.value] || defenderWeapons[0];
+            const names = [
+                weapon?.Habilidad && `${weapon.Habilidad.replace(/\s*\(Def\)$/i, '')} (Def)`,
+                weapon?.nombre && `${weapon.nombre} D (Def)`,
+                weapon?.nombre && `${weapon.nombre} I (Def)`
+            ].filter(Boolean).map(name => name.toLowerCase());
+            const matched = defenseSkills.find(skill => names.includes(skill.nombre.toLowerCase()));
+            const fallback = defenseSkills.find(skill => skill.nombre.toLowerCase() === 'esquivar') || defenseSkills[0];
+            defenseSkillSelect.value = (matched || fallback)?.nombre || '';
+            updateDefenseSkill();
+        };
+
+        const updateTechnique = () => {
+            const technique = techniques.find(skill => skill.nombre === techniqueSelect.value);
+            combat.results.technique = null;
+            modal.querySelector('#combatTechniqueAdjustment').disabled = !technique;
+            modal.querySelector('#combatTechniqueTarget').disabled = !technique;
+            attachRoll(technique, attackerPersonaje, techniqueContainer, 'technique', attackerWeapons[weaponSelect.value] || attackerWeapons[0]);
+        };
+
+        const updateDefenseTechnique = () => {
+            const technique = defenseTechniques.find(skill => skill.nombre === defenseTechniqueSelect.value);
+            combat.results.defenseTechnique = null;
+            modal.querySelector('#combatDefenseTechniqueAdjustment').disabled = !technique;
+            modal.querySelector('#combatDefenseTechniqueTarget').disabled = !technique;
+            attachRoll(technique, targetPersonaje, defenseTechniqueContainer, 'defenseTechnique', defenderWeapons[defendWeaponSelect.value] || defenderWeapons[0]);
+        };
+
+        weaponSelect.onchange = () => updateAttackSkill(true);
+        attackSkillSelect.onchange = () => updateAttackSkill();
+        defendWeaponSelect.onchange = updateDefenseWeapon;
+        defenseSkillSelect.onchange = updateDefenseSkill;
+        techniqueSelect.onchange = updateTechnique;
+        defenseTechniqueSelect.onchange = updateDefenseTechnique;
+        damageTypeSelect.onchange = () => {
+            lastDamageGrade = null;
+            const finalGrade = updateResolution();
+            if (finalGrade !== null && finalGrade >= TipoTirada.EXITO) syncDamage(finalGrade);
+        };
+        modal.querySelector('#combatTechniqueTarget').onchange = updateResolution;
+        modal.querySelector('#combatTechniqueAdjustment').oninput = updateResolution;
+        modal.querySelector('#combatDefenseTechniqueTarget').onchange = updateResolution;
+        modal.querySelector('#combatDefenseTechniqueAdjustment').oninput = updateResolution;
+        modal.querySelector('#combatNoDefense').onchange = () => {
+            const disableDefenseRoll = modal.querySelector('#combatNoDefense').checked || defenseSkills.length === 0;
+            defenseSkillSelect.disabled = disableDefenseRoll;
+            defendWeaponSelect.disabled = disableDefenseRoll;
+            defenseContainer.style.opacity = disableDefenseRoll ? '0.45' : '1';
+            updateResolution();
+        };
+        modal.querySelector('#rollCombatDamage').onclick = () => {
+            const finalGrade = updateResolution();
+            if (finalGrade !== null && finalGrade >= TipoTirada.EXITO) syncDamage(finalGrade);
+        };
+        modal.querySelector('#rollCombatLocation').onclick = async () => {
+            const roll = typeof window.roll1d100 === 'function' ? await window.roll1d100()
+                : typeof window.roll === 'function' ? await window.roll('1d100')
+                    : Math.floor(Math.random() * 100) + 1;
+            const rollInput = modal.querySelector('#combatLocationRoll');
+            rollInput.value = roll;
+            rollInput.dispatchEvent(new Event('input'));
+        };
+        modal.querySelector('#combatLocation').onchange = event => {
+            const option = event.target.selectedOptions[0];
+            if (option?.dataset.min) modal.querySelector('#combatLocationRoll').value = option.dataset.min;
+        };
+        modal.querySelector('#combatLocationRoll').oninput = event => {
+            const value = parseInt(event.target.value, 10);
+            const locationSelect = modal.querySelector('#combatLocation');
+            for (let index = 0; index < locationSelect.options.length; index++) {
+                const min = parseInt(locationSelect.options[index].dataset.min, 10);
+                const max = parseInt(locationSelect.options[index].dataset.max, 10);
+                if (value >= min && value <= max) {
+                    locationSelect.selectedIndex = index;
+                    break;
+                }
+            }
+        };
+        modal.querySelector('#swapCombatRoles').onclick = () => {
+            [combat.attackerPersonaje, combat.targetPersonaje] = [combat.targetPersonaje, combat.attackerPersonaje];
+            [combat.attackerElement, combat.targetElement] = [combat.targetElement, combat.attackerElement];
+            this.populateCombatSection(combat.attackerPersonaje, combat.targetPersonaje);
+            this.updateCombatElementIds();
+        };
+
+        modal.querySelector('#combatNoDefense').checked = defenseSkills.length === 0 && defenseTechniques.length === 0;
+        modal.querySelector('#combatNoDefense').dispatchEvent(new Event('change'));
+        updateAttackSkill(true);
+        updateDefenseWeapon();
+        updateTechnique();
+        updateDefenseTechnique();
+
+        const locationSelect = modal.querySelector('#combatLocation');
+        const locations = targetPersonaje.cuerpo?.todas?.() || [];
+        locationSelect.innerHTML = locations.map(location =>
+            `<option value="${location.nombre}" data-min="${location.min}" data-max="${location.max}">${location.nombre} (${location.daño}/${location.pg})</option>`
+        ).join('');
+        if (locations[0]) modal.querySelector('#combatLocationRoll').value = locations[0].min;
+        this.updateCombatElementIds();
+        updateResolution();
+    },
+
     /**
      * Crea el modal de ataque si no existe
      */
@@ -702,125 +1033,230 @@ const CharacterController = {
         const modal = document.createElement('div');
         modal.id = 'attackModal';
         modal.className = 'modal';
-        
         modal.innerHTML = `
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>Ataque</h3>
-                    <span class="close-modal" id="closeAttackModal">&times;</span>
+            <style>
+                body.combat-modal-open { touch-action:auto; }
+                .attack-modal { box-sizing:border-box; background:#1a1a1a; color:#e0e0e0; border:1px solid #505050; border-radius:6px; width:min(820px, calc(100vw - 16px)); max-height:calc(100dvh - 16px); display:flex; flex-direction:column; box-shadow:0 10px 36px rgba(0,0,0,.6); }
+                .attack-modal-header, .attack-modal-footer { display:flex; flex:0 0 auto; align-items:center; justify-content:space-between; gap:8px; padding:7px 10px; background:#252525; border-bottom:1px solid #444; }
+                .attack-modal-header h3 { margin:0; font-size:16px; }
+                #attackModal { z-index:11000; align-items:center; justify-content:center; box-sizing:border-box; padding:8px; overflow-y:auto; touch-action:pan-y; }
+                .attack-modal-body { min-height:0; overflow-y:auto; overscroll-behavior:contain; touch-action:pan-y; padding:8px; }
+                .combat-roles { display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap; margin-bottom:7px; padding:6px; background:#222; border:1px solid #3d3d3d; border-radius:4px; font-size:13px; }
+                .combat-roles a { color:#f1f1f1; font-weight:600; text-decoration:none; }
+                .combat-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; }
+                .combat-section { min-width:0; padding:8px; background:#222; border:1px solid #3d3d3d; border-radius:4px; }
+                .combat-section h4 { margin:0 0 6px; font-size:14px; }
+                .attack-section { margin-bottom:6px; }
+                .attack-section label, .damage-controls label { display:block; margin-bottom:3px; color:#b7b7b7; font-size:11px; }
+                .dark-select, .dark-input { width:100%; min-width:0; box-sizing:border-box; padding:6px; background:#151515; color:#e0e0e0; border:1px solid #4a4a4a; border-radius:3px; font-size:13px; }
+                .dark-select:focus, .dark-input:focus { outline:2px solid #55a5a0; outline-offset:1px; }
+                .dark-select:disabled, .dark-input:disabled { opacity:.55; }
+                .combat-technique { margin-top:6px; border-top:1px solid #444; padding-top:6px; }
+                .combat-technique summary { padding:5px 0; color:#d5d5d5; font-size:12px; cursor:pointer; }
+                .combat-adjustment { display:grid; grid-template-columns:minmax(0,1fr) 74px; gap:6px; }
+                .combat-result { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:5px; margin-top:7px; }
+                .combat-grade { min-width:0; padding:6px 3px; background:#151515; border:1px solid #444; border-radius:3px; text-align:center; }
+                .combat-grade small { display:block; margin-bottom:4px; color:#aaa; }
+                .combat-grade strong { font-size:12px; overflow-wrap:anywhere; }
+                #combatFinalGrade { color:#73d3bd; }
+                #combatResolutionDetail { min-height:14px; margin:5px 0 0; color:#aaa; font-size:11px; }
+                .damage-controls { margin-top:7px; padding:8px; background:#222; border:1px solid #3d3d3d; border-radius:4px; }
+                .damage-row { display:grid; grid-template-columns:minmax(0,2fr) minmax(70px,.8fr) auto; align-items:end; gap:6px; }
+                .location-input { display:grid; grid-template-columns:minmax(0,2fr) minmax(60px,.8fr) auto; align-items:end; gap:6px; margin-top:6px; }
+                .roll-dmg-btn, .combat-icon-button, .combat-button { display:inline-flex; align-items:center; justify-content:center; min-height:38px; padding:5px 8px; color:#eee; background:#303c38; border:1px solid #55746b; border-radius:3px; cursor:pointer; }
+                .combat-icon-button { width:38px; padding:4px; }
+                .combat-icon-button img { width:26px; height:26px; }
+                .combat-button:hover, .combat-icon-button:hover, .roll-dmg-btn:hover { filter:brightness(1.2); }
+                .combat-button:disabled { opacity:.45; cursor:not-allowed; }
+                .combat-modal-footer { border-top:1px solid #444; border-bottom:0; }
+                .combat-modal-footer .combat-button:last-child { background:#276c62; border-color:#478b80; }
+                @media (max-width:620px) {
+                    .attack-modal { width:100%; max-height:100dvh; border-radius:0; }
+                    #attackModal { padding:0; }
+                    .attack-modal-header, .attack-modal-footer { padding:6px 8px; }
+                    .attack-modal-body { padding:6px; }
+                    .combat-grid { grid-template-columns:minmax(0,1fr); gap:5px; }
+                    .combat-section { padding:7px; }
+                    .combat-result { grid-template-columns:repeat(2,minmax(0,1fr)); }
+                    .combat-roles { gap:5px; }
+                    .combat-roles .combat-button { min-height:34px; }
+                }
+            </style>
+            <div class="attack-modal">
+                <div class="attack-modal-header">
+                    <h3>Resolución de combate</h3>
+                    <button type="button" class="combat-icon-button" id="closeAttackModal" aria-label="Cerrar" title="Cerrar">×</button>
                 </div>
-                <div class="modal-body">
-                    <div class="attack-info">
-                        <p><strong id="attackerName"></strong> ataca a <strong id="targetName"></strong></p>
+                <div class="attack-modal-body">
+                    <div class="combat-roles">
+                        <a id="combatAttackerName" target="_blank"></a>
+                        <span>ataca a</span>
+                        <a id="combatTargetName" target="_blank"></a>
+                        <button type="button" class="combat-button" id="swapCombatRoles" title="Intercambiar atacante y defensor">↔ Contraatacar</button>
                     </div>
-                    <div class="damage-controls">
-                        <div>
-                            <label for="attackDamage">Cantidad de daño:</label>
-                            <input type="number" id="attackDamage" min="1" value="1">
+                    <div class="combat-grid">
+                        <section class="combat-section">
+                            <h4>⚔️ Ataque</h4>
+                            <div class="attack-section"><label for="combatWeapon">Arma</label><select id="combatWeapon" class="dark-select"></select></div>
+                            <div class="attack-section"><label for="combatAttackSkill">Habilidad</label><select id="combatAttackSkill" class="dark-select"></select></div>
+                            <div class="attack-section"><label>Tirada de ataque</label><div id="combatAttackRoll"></div></div>
+                            <details class="combat-technique">
+                                <summary>Técnica de ataque</summary>
+                                <div class="attack-section"><label for="combatTechnique">Técnica</label><select id="combatTechnique" class="dark-select"></select></div>
+                                <div class="attack-section"><label>Tirada de Técnica</label><div id="combatTechniqueRoll"></div></div>
+                                <div class="combat-adjustment">
+                                    <div><label for="combatTechniqueTarget">Ajuste al grado de</label><select id="combatTechniqueTarget" class="dark-select"><option value="attack">Ataque propio</option><option value="defense">Defensa rival</option></select></div>
+                                    <div><label for="combatTechniqueAdjustment">Grados</label><input id="combatTechniqueAdjustment" class="dark-input" type="number" step="1" value="0" disabled></div>
+                                </div>
+                            </details>
+                        </section>
+                        <section class="combat-section">
+                            <h4>🛡️ Defensa</h4>
+                            <div class="attack-section"><label for="combatDefenseWeapon">Arma para detener</label><select id="combatDefenseWeapon" class="dark-select"></select></div>
+                            <div class="attack-section"><label for="combatDefenseSkill">Esquiva o parada</label><select id="combatDefenseSkill" class="dark-select"></select></div>
+                            <div class="attack-section"><label>Tirada de defensa</label><div id="combatDefenseRoll"></div></div>
+                            <label><input id="combatNoDefense" type="checkbox"> No realiza defensa</label>
+                            <details class="combat-technique">
+                                <summary>Técnica defensiva</summary>
+                                <div class="attack-section"><label for="combatDefenseTechnique">Técnica</label><select id="combatDefenseTechnique" class="dark-select"></select></div>
+                                <div class="attack-section"><label>Tirada de Técnica</label><div id="combatDefenseTechniqueRoll"></div></div>
+                                <div class="combat-adjustment">
+                                    <div><label for="combatDefenseTechniqueTarget">Ajuste al grado de</label><select id="combatDefenseTechniqueTarget" class="dark-select"><option value="defense">Defensa propia</option><option value="attack">Ataque rival</option></select></div>
+                                    <div><label for="combatDefenseTechniqueAdjustment">Grados</label><input id="combatDefenseTechniqueAdjustment" class="dark-input" type="number" step="1" value="0" disabled></div>
+                                </div>
+                            </details>
+                        </section>
+                    </div>
+                    <div class="combat-result" aria-live="polite">
+                        <div class="combat-grade"><small>Ataque</small><strong id="combatAttackGrade">Pendiente</strong></div>
+                        <div class="combat-grade"><small>Defensa</small><strong id="combatDefenseGrade">Pendiente</strong></div>
+                        <div class="combat-grade"><small>Técnica</small><strong id="combatTechniqueGrade">Sin tirar</strong></div>
+                        <div class="combat-grade"><small>Resultado</small><strong id="combatFinalGrade">Pendiente</strong></div>
+                    </div>
+                    <p id="combatResolutionDetail">Completa las tiradas de ataque y defensa, o marca que no hay defensa.</p>
+                    <section class="damage-controls">
+                        <h4 style="margin:0 0 10px">Daño y localización</h4>
+                        <div class="damage-row">
+                            <div><label for="combatDamageType">Daño del arma</label><select id="combatDamageType" class="dark-select"></select></div>
+                            <div><label for="combatDamage">Cantidad</label><input type="number" id="combatDamage" class="dark-input" min="0" value="0"></div>
+                            <button type="button" id="rollCombatDamage" class="roll-dmg-btn" title="Volver a tirar el daño">🎲</button>
                         </div>
                         <div class="location-input">
-                            <label for="attackLocation">Localización:</label>
-                            <select id="attackLocation"></select>
-                            <input type="number" id="attackLocationRoll" min="1" max="100" value="1">
-                            <span style="cursor:pointer; padding:5px;">
-                                <img src="../img/10_sided_die.svg" width="30" height="30" id="rollDiceButton">
-                            </span>
+                            <div><label for="combatLocation">Localización</label><select id="combatLocation" class="dark-select"></select></div>
+                            <div><label for="combatLocationRoll">Tirada</label><input type="number" id="combatLocationRoll" class="dark-input" min="1" max="100" value="1"></div>
+                            <button type="button" id="rollCombatLocation" class="combat-icon-button" title="Tirar localización"><img src="../img/10_sided_die.svg" alt=""></button>
                         </div>
-                        <button id="applyAttackDamage">Aplicar daño</button>
-                    </div>
+                    </section>
+                </div>
+                <div class="attack-modal-footer combat-modal-footer">
+                    <button type="button" class="combat-button" id="cancelCombat">Cerrar</button>
+                    <button type="button" class="combat-button" id="applyCombatDamage" disabled>Aplicar daño</button>
                 </div>
             </div>
         `;
-        
+
         document.body.appendChild(modal);
-        
-        // Configurar eventos
-        document.getElementById('closeAttackModal').addEventListener('click', () => {
+
+        const closeModal = () => {
             modal.style.display = 'none';
-        });
-        
-        document.getElementById('rollDiceButton').addEventListener('click', () => {
-            const roll = Math.floor(Math.random() * 100) + 1;
-            document.getElementById('attackLocationRoll').value = roll;
-            document.getElementById('attackLocationRoll').dispatchEvent(new Event('input'));
-        });
-        
-        document.getElementById('attackLocation').addEventListener('change', (e) => {
-            const option = e.target.selectedOptions[0];
-            document.getElementById('attackLocationRoll').value = option.dataset.min;
-        });
-        
-        document.getElementById('attackLocationRoll').addEventListener('input', (e) => {
-            const roll = parseInt(e.target.value);
-            const options = document.getElementById('attackLocation').options;
-            
-            for(let i = 0; i < options.length; i++) {
-                const min = parseInt(options[i].dataset.min);
-                const max = parseInt(options[i].dataset.max);
-                
-                if (roll >= min && roll <= max) {
-                    document.getElementById('attackLocation').selectedIndex = i;
-                    break;
-                }
-            }
-        });
-        
-        document.getElementById('applyAttackDamage').addEventListener('click', () => {
-            this.applyAttackDamage();
-        });
-        
-        // Cerrar el modal al hacer clic fuera
-        window.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                modal.style.display = 'none';
-            }
-        });
+            document.body.classList.remove('combat-modal-open');
+        };
+        modal.querySelector('#closeAttackModal').addEventListener('click', closeModal);
+        modal.querySelector('#cancelCombat').addEventListener('click', closeModal);
+        modal.querySelector('#applyCombatDamage').addEventListener('click', () => this.applyCombatDamage());
+        window.addEventListener('click', event => { if (event.target === modal) closeModal(); });
     },
-    
+
     /**
-     * Aplica el daño al personaje objetivo
+     * Actualiza los IDs DOM de los personajes tras intercambiar roles
      */
-    applyAttackDamage() {
-        const attackModal = document.getElementById('attackModal');
-        const targetId = attackModal.dataset.target;
-        const targetElement = document.getElementById(targetId);
-        console.log(targetId);
-        
-        if (!targetElement) {
-            console.log('No se encontró el elemento objetivo');
-            attackModal.style.display = 'none';
-            return;
+    updateCombatElementIds() {
+        const modal = document.getElementById('attackModal');
+        const combat = this.currentCombat;
+        if (!modal || !combat) return;
+        modal.dataset.attacker = combat.attackerElement?.id || '';
+        modal.dataset.target = combat.targetElement?.id || '';
+        modal.querySelector('#swapCombatRoles').textContent = `↔ Contraatacar`;
+    },
+
+    getCombatResultGrade(attackGrade, defenseGrade) {
+        if (attackGrade === null || defenseGrade === null) return null;
+        return Math.max(
+            TipoTirada.PIFIA,
+            Math.min(TipoTirada.SUPERCRITICO, attackGrade - defenseGrade + TipoTirada.EXITO - TipoTirada.FALLO)
+        );
+    },
+
+    getCombatAdjustedGrades(combat, modal) {
+        if (!combat || combat.results.attack === null) {
+            return { attackGrade: combat?.results.attack ?? null, defenseGrade: null, effectiveAttack: null, effectiveDefense: null };
         }
-        
-        // Usar getPersonajeFromElement en lugar de this.personajes.get
-        const targetPersonaje = this.getPersonajeFromElement(targetElement);
+        const noDefenseSkill = modal.querySelector('#combatNoDefense').checked || !modal.querySelector('#combatDefenseSkill').value;
+        const defenseGrade = noDefenseSkill ? TipoTirada.FALLO : combat.results.defense;
+        const attackTechniqueSucceeded = modal.querySelector('#combatTechnique').value
+            && combat.results.technique !== null && combat.results.technique >= TipoTirada.EXITO;
+        const defenseTechniqueSucceeded = modal.querySelector('#combatDefenseTechnique').value
+            && combat.results.defenseTechnique !== null && combat.results.defenseTechnique >= TipoTirada.EXITO;
+        const attackTechniqueAdjustment = attackTechniqueSucceeded
+            ? parseInt(modal.querySelector('#combatTechniqueAdjustment').value, 10) || 0
+            : 0;
+        const defenseTechniqueAdjustment = defenseTechniqueSucceeded
+            ? parseInt(modal.querySelector('#combatDefenseTechniqueAdjustment').value, 10) || 0
+            : 0;
+        const attackAdjustment = (modal.querySelector('#combatTechniqueTarget').value === 'attack' ? attackTechniqueAdjustment : 0)
+            + (modal.querySelector('#combatDefenseTechniqueTarget').value === 'attack' ? defenseTechniqueAdjustment : 0);
+        const defenseAdjustment = (modal.querySelector('#combatTechniqueTarget').value === 'defense' ? attackTechniqueAdjustment : 0)
+            + (modal.querySelector('#combatDefenseTechniqueTarget').value === 'defense' ? defenseTechniqueAdjustment : 0);
+        const clampGrade = grade => Math.max(TipoTirada.PIFIA, Math.min(TipoTirada.SUPERCRITICO, grade));
+        return {
+            attackGrade: combat.results.attack,
+            defenseGrade,
+            effectiveAttack: clampGrade(combat.results.attack + attackAdjustment),
+            effectiveDefense: defenseGrade === null ? null : clampGrade(defenseGrade + defenseAdjustment)
+        };
+    },
+
+    /**
+     * Aplica el daño si el grado final del ataque alcanza EXITO
+     */
+    applyCombatDamage() {
+        const modal = document.getElementById('attackModal');
+        const combat = this.currentCombat;
+        const targetPersonaje = combat?.targetPersonaje;
+
         if (!targetPersonaje) {
-            console.log('No se encontró el personaje objetivo');
-            attackModal.style.display = 'none';
+            console.log('[AttackModal] No se encontró el personaje objetivo');
+            modal.style.display = 'none';
+            document.body.classList.remove('combat-modal-open');
             return;
         }
-        
-        const amount = parseInt(document.getElementById('attackDamage').value);
-        const location = document.getElementById('attackLocation').value;
-        
-        if (amount && location) {
-            // Aplicar daño a la localización
-            console.log(`Aplicando ${amount} de daño a ${location}`);
-            //log targetPersonaje
-            console.log(targetPersonaje);
-            
-            targetPersonaje.cuerpo.dañarLocalizacion(amount, location);
-            
-            // Actualizar la tarjeta de características si está visible
-            if (document.getElementById('characterCard').style.display === 'block') {
+
+        const { effectiveAttack, effectiveDefense } = this.getCombatAdjustedGrades(combat, modal);
+        const finalGrade = this.getCombatResultGrade(effectiveAttack, effectiveDefense);
+        if (finalGrade < TipoTirada.EXITO) return;
+
+        const amount = parseInt(modal.querySelector('#combatDamage').value, 10);
+        const location = modal.querySelector('#combatLocation').value;
+
+        if (amount > 0 && location) {
+            console.log(`[AttackModal] Aplicando ${amount} de daño a ${location} (${targetPersonaje.nombre})`);
+            targetPersonaje.cuerpo?.dañarLocalizacion(amount, location);
+            if (document.getElementById('characterCard')?.style.display === 'block') {
                 this.showCharacterCard(targetPersonaje);
             }
-            
-            // Cerrar el modal
-            attackModal.style.display = 'none';
         }
+        modal.style.display = 'none';
+        document.body.classList.remove('combat-modal-open');
     },
-    
+
+    applyAttackDamage() {
+        this.applyCombatDamage();
+    },
+
+    applyDefenseDamage() {
+        this.applyCombatDamage();
+    },
+
     /**
      * Obtiene el objeto personaje a partir del elemento DOM
      * @param {Element} element - El elemento DOM del personaje
@@ -828,89 +1264,87 @@ const CharacterController = {
      */
     getPersonajeFromElement(element) {
         if (!element) return null;
-        //TODO: return     perso 
-        
-        return this.personajes.get(element.nombre) || null;
-        // console.log("personaje+:"+n);
-        return element.p || null;
+        return this.personajes.get(element.nombre) || element.p || null;
     },
-    
+
     /**
-     * Inicia el modo de ataque para el personaje activo
+     * Inicia el modo de ataque para el personaje atacante
      */
-    startAttackMode() {
-        if (!this.activeCharacter) return;
-        
+    startAttackMode(attacker = this.activeCharacter) {
+        if (!attacker) return;
+
         this.attackMode = true;
-        this.attackingCharacter = this.activeCharacter;
-        
-        // Cambiar el cursor para indicar modo de ataque
+        this.attackingCharacter = attacker;
+        document.body.classList.add('attack-mode');
         document.body.style.cursor = 'crosshair';
-        
-        // Añadir clase visual al personaje atacante
-        this.attackingCharacter.classList.add('attacking');
-        
-        // Mostrar mensaje de ayuda
-        this.showTooltip('Selecciona un personaje para atacar', 3000);
-        
-        // Añadir listener para cancelar el modo de ataque con Escape
+        this.attackingCharacter.classList?.add('attacking');
+
+        this.showTooltip('Selecciona un personaje para atacar', 2500);
+
         document.addEventListener('keydown', this.handleAttackModeEscape);
+
+        this._cancelAttackRightClick = (e) => {
+            if (e.button === 2) {
+                this.cancelAttackMode();
+            }
+        };
+        document.addEventListener('mousedown', this._cancelAttackRightClick);
     },
-    
+
     /**
      * Maneja la tecla Escape para cancelar el modo de ataque
-     * @param {KeyboardEvent} e - El evento de teclado
      */
     handleAttackModeEscape(e) {
         if (e.key === 'Escape') {
             CharacterController.cancelAttackMode();
         }
     },
-    
+
     /**
      * Cancela el modo de ataque
      */
     cancelAttackMode() {
         this.attackMode = false;
-        
-        // Restaurar cursor
+        document.body.classList.remove('attack-mode');
         document.body.style.cursor = 'default';
-        
-        // Quitar clase visual del personaje atacante si existe
+
         if (this.attackingCharacter) {
-            this.attackingCharacter.classList.remove('attacking');
+            this.attackingCharacter.classList?.remove('attacking');
             this.attackingCharacter = null;
         }
-        
-        // Eliminar listener de Escape
+
         document.removeEventListener('keydown', this.handleAttackModeEscape);
+        if (this._cancelAttackRightClick) {
+            document.removeEventListener('mousedown', this._cancelAttackRightClick);
+            this._cancelAttackRightClick = null;
+        }
     },
-    
+
     /**
      * Maneja el clic en un personaje cuando estamos en modo de ataque
      * @param {Element} targetElement - El elemento del personaje objetivo
      */
     handleAttackClick(targetElement) {
         if (!this.attackMode || !this.attackingCharacter) return;
-        
+
         // No permitir atacarse a sí mismo
         if (targetElement === this.attackingCharacter) {
             this.showTooltip('No puedes atacarte a ti mismo', 2000);
             return;
         }
-        
+
         const attackerPersonaje = this.getPersonajeFromElement(this.attackingCharacter);
         const targetPersonaje = this.getPersonajeFromElement(targetElement);
-        
+
         if (!attackerPersonaje || !targetPersonaje) {
             this.cancelAttackMode();
             return;
         }
-        
+
         // Mostrar el modal de ataque
-        this.showAttackModal(attackerPersonaje, targetPersonaje);
+        this.showAttackModal(attackerPersonaje, targetPersonaje, targetElement);
     },
-    
+
     /**
      * Muestra un tooltip con un mensaje
      * @param {string} message - El mensaje a mostrar
@@ -921,7 +1355,7 @@ const CharacterController = {
         tooltip.className = 'tooltip';
         tooltip.textContent = message;
         document.body.appendChild(tooltip);
-        
+
         // Posicionar en el centro de la pantalla
         tooltip.style.position = 'fixed';
         tooltip.style.top = '50%';
@@ -932,33 +1366,33 @@ const CharacterController = {
         tooltip.style.padding = '10px';
         tooltip.style.borderRadius = '5px';
         tooltip.style.zIndex = '1000';
-        
+
         // Eliminar después de la duración especificada
         setTimeout(() => {
             tooltip.remove();
         }, duration);
     },
-    
+
     /**
      * Configura las pestañas de la tarjeta de características
      */
     setupCharacterCardTabs() {
         const tabButtons = document.querySelectorAll('.tab-button');
         const tabContents = document.querySelectorAll('.tab-content');
-        
+
         tabButtons.forEach(button => {
             button.addEventListener('click', () => {
                 // Desactivar todas las pestañas
                 tabButtons.forEach(btn => btn.classList.remove('active'));
                 tabContents.forEach(content => content.classList.remove('active'));
-                
+
                 // Activar la pestaña seleccionada
                 button.classList.add('active');
                 const tabId = button.getAttribute('data-tab');
                 document.getElementById(`${tabId}Tab`).classList.add('active');
             });
         });
-        
+
         // Configurar botón de cierre
         document.getElementById('closeCharacterCard').addEventListener('click', () => {
             document.getElementById('characterCard').style.display = 'none';
@@ -972,7 +1406,7 @@ const CharacterController = {
         this.targetMode = !this.targetMode;
         const button = document.getElementById('bObjetivo');
         const mapContainer = document.getElementById('svg-container');
-        
+
         if (this.targetMode) {
             // Preparar lista de personajes objetivo
             if (this.selectedCharacters.size > 0) {
@@ -984,17 +1418,17 @@ const CharacterController = {
                 this.showTooltip('Selecciona un personaje primero', 2000);
                 return;
             }
-            
+
             // Cambiar estado visual del botón
             button.style.backgroundColor = '#4CAF50';
             button.style.color = 'white';
-            
+
             // Cambiar cursor
             document.body.style.cursor = 'crosshair';
-            
+
             // Mostrar mensaje
             this.showTooltip(`Haz clic en el mapa para establecer el objetivo para ${this.targetCharacters.length} personaje(s)`, 3000);
-            
+
             // Agregar listeners para clics en el mapa (mouse y touch)
             this.targetClickHandler = this.handleTargetClick.bind(this);
             mapContainer.addEventListener('click', this.targetClickHandler);
@@ -1005,7 +1439,7 @@ const CharacterController = {
             button.style.color = '';
             document.body.style.cursor = 'default';
             this.targetCharacters = [];
-            
+
             // Remover listeners
             if (this.targetClickHandler) {
                 mapContainer.removeEventListener('click', this.targetClickHandler);
@@ -1029,15 +1463,15 @@ const CharacterController = {
             }
             return;
         }
-        
+
         // No procesar si el clic es en un personaje
         if (e.target.closest('.character')) {
             return;
         }
-        
+
         // Prevenir propagación para no hacer pan del mapa
         e.stopPropagation();
-        
+
         // Obtener coordenadas según el tipo de evento
         let clientX, clientY;
         if (e.touches && e.touches.length > 0) {
@@ -1053,28 +1487,28 @@ const CharacterController = {
             clientX = e.clientX;
             clientY = e.clientY;
         }
-        
+
         const point = SVGUtils.getPointInSVG(clientX, clientY);
         if (!point) return;
-        
+
         // Establecer la ruta final
         this.setRouteTarget(point);
-        
+
         // Desactivar modo target
         const button = document.getElementById('bObjetivo');
         const mapContainer = document.getElementById('svg-container');
-        
+
         button.style.backgroundColor = '';
         button.style.color = '';
         document.body.style.cursor = 'default';
-        
+
         // Remover listeners
         if (this.targetClickHandler) {
             mapContainer.removeEventListener('click', this.targetClickHandler);
             mapContainer.removeEventListener('touchend', this.targetClickHandler);
             this.targetClickHandler = null;
         }
-        
+
         this.targetMode = false;
     },
 
@@ -1084,21 +1518,21 @@ const CharacterController = {
      */
     setRouteTarget(targetPoint) {
         if (!targetPoint) return;
-        
+
         this.targetCharacters.forEach((charElement) => {
             // Obtener la posición actual del personaje
             const image = charElement.querySelector('image');
             const currentX = parseFloat(image.getAttribute('data-x')) ||
-                            (parseFloat(image.getAttribute('x')) + parseFloat(image.getAttribute('width')) / 2);
+                (parseFloat(image.getAttribute('x')) + parseFloat(image.getAttribute('width')) / 2);
             const currentY = parseFloat(image.getAttribute('data-y')) ||
-                            (parseFloat(image.getAttribute('y')) + parseFloat(image.getAttribute('height')) / 2);
-            
+                (parseFloat(image.getAttribute('y')) + parseFloat(image.getAttribute('height')) / 2);
+
             // Crear una ruta directa al punto objetivo
             const route = [
                 { x: currentX, y: currentY },
                 targetPoint
             ];
-            
+
             if (this.routePlanningMode) {
                 // En modo planificación, guardar como ruta planificada
                 this.plannedRoutes.set(charElement, route);
@@ -1109,14 +1543,14 @@ const CharacterController = {
                 // En modo normal, mover el personaje y guardar la ruta
                 this.characterRoutes.set(charElement, route);
                 this.moveCharacter(image, targetPoint.x, targetPoint.y);
-                
+
                 if (this.rastro) {
                     this.setNormalRoutePath(charElement, route);
                 }
-                
+
                 // Store original position for undo
                 this.originalPositions.set(charElement, { x: currentX, y: currentY });
-                
+
                 // Si autoconfirm está desactivado, mostrar botones de confirmación
                 if (!this.autoConfirmMove) {
                     const confirmationDiv = document.getElementById('moveConfirmation');
@@ -1132,16 +1566,16 @@ const CharacterController = {
                     }
                 }
             }
-            
+
             // Actualizar la visualización de distancia
             this.updateDistanceDisplay(charElement);
         });
-        
+
         // Actualizar el rango de simulación de ruta si estamos en modo planificación
         if (this.routePlanningMode) {
             this.refreshRouteSimulationRange();
         }
-        
+
         this.showTooltip('Ruta establecida', 1500);
     },
 
@@ -1268,9 +1702,9 @@ const CharacterController = {
      * @returns {SVGElement} - The created character element
      */
     addCharacterToMap(imageUrl, position) {
-        
+
         if (!svgElement) return;
-        
+
         // Create character group
         const charGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
         charGroup.setAttribute('class', 'character');
@@ -1282,10 +1716,10 @@ const CharacterController = {
         const fileName = typeof position === 'string' ?
             position.split('/').pop() :
             imageUrl.split('/').pop();
-        
+
         // Get display name with spaces
         const nombre = fileName.substring(0, fileName.lastIndexOf('.')).replace(/%20/g, ' ');
-        
+
         // Get normalized ID without spaces
         let baseName = this.normalizeId(nombre);
 
@@ -1364,34 +1798,34 @@ const CharacterController = {
         }
 
         //TODO: crear personaje si no existe
-        let charCreado= new Humano();
-        charCreado.sexo='♂'
-        charCreado.nombre=nombre;
+        let charCreado = new Humano();
+        charCreado.sexo = '♂'
+        charCreado.nombre = nombre;
         charCreado.act();
         charCreado.setMaxPuntos();
-        GA.forEach((arma,nombreArma) => {
-   
-           if(nombre.toLowerCase().includes(nombreArma.toLowerCase())){
-               console.log(nombreArma);
-               let arma=GA.get(nombreArma).generar();
-               console.log(arma);         
-               charCreado.inventario.add(arma);
-               charCreado.setHabilidad(new HabilidadMarcial(nombreArma, Manipulación, 25 + new Dado('1d100').tirar(), true, "Brazo D", arma));
-               if (nombre.toLowerCase().includes('doble')){
-                   charCreado.inventario.add(GA.get(nombreArma).generar());
-                   charCreado.setHabilidad(new HabilidadMarcial(nombreArma, Manipulación, 25 + new Dado('1d100').tirar(), true, "Brazo I", arma));                 
-               }
-           }
-        //    console.log(nombreArma);
-    
-        });  
-            
+        GA.forEach((arma, nombreArma) => {
+
+            if (nombre.toLowerCase().includes(nombreArma.toLowerCase())) {
+                console.log(nombreArma);
+                let arma = GA.get(nombreArma).generar();
+                console.log(arma);
+                charCreado.inventario.add(arma);
+                charCreado.setHabilidad(new HabilidadMarcial(nombreArma, Manipulación, 25 + new Dado('1d100').tirar(), true, "Brazo D", arma));
+                if (nombre.toLowerCase().includes('doble')) {
+                    charCreado.inventario.add(GA.get(nombreArma).generar());
+                    charCreado.setHabilidad(new HabilidadMarcial(nombreArma, Manipulación, 25 + new Dado('1d100').tirar(), true, "Brazo I", arma));
+                }
+            }
+            //    console.log(nombreArma);
+
+        });
+
 
         this.personajes.set(nombre, charCreado);
-        
+
         // Asignar el personaje al elemento DOM para poder acceder a él desde el elemento
         charGroup.p = charCreado;
-        
+
         return charGroup;
     },
 
@@ -1950,8 +2384,8 @@ const CharacterController = {
         if (mapTogglePathItem) {
             mapTogglePathItem.textContent = this.rastro ? 'Ocultar camino' : 'Mostrar camino';
         }
-        if (this.rastro) ocultarCamino.checked =false
-        else ocultarCamino.checked =true;
+        if (this.rastro) ocultarCamino.checked = false
+        else ocultarCamino.checked = true;
     },
 
     /**

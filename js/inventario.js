@@ -40,68 +40,68 @@ class Objeto extends Modificable {
     return this.nombre + this.ctd + this.peso + this.valor;
   }
 
-    /**
-   * 
-   * @param {ModHab} mod El modificador de objeto
-   */
-    addMod(mod) {
-      console.log(mod);
-      if (!this.mods[mod.atributo])
-        this.mods[mod.atributo] = {}
-  
-      this.mods[mod.atributo][mod.id] = mod;
-      //ÑAPA para que actualize el valor total
-      // this.valor++; this.valor--;
-    }
-  
-    /**
-   * 
-   * @param {ModHab} mod El modificador de objeto a eliminar
-   */
-    delMod(mod) {
-      console.log(mod);
-      if (!this.mods[mod.atributo])
-        return;
-  
-      //ÑAPA para que actualize el valot total
-      this.valor++; this.valor--;
-  
-      delete this.mods[mod.atributo][mod.id];
-      // this.t=this.total();
-  
-    }
-
-/**
+  /**
  * 
- * @param {Animal} pj El personaje en el que se equipa el objeto
+ * @param {ModHab} mod El modificador de objeto
  */
-    equipar(pj){
-      this.equipado=true;
-      if(this.listaMods){
-        for(let m in this.listaMods){
-          console.error(m);
-          pj.addModificadores(this.listaMods[m])
-        }
-        
-      }
-    }
+  addMod(mod) {
+    console.log(mod);
+    if (!this.mods[mod.atributo])
+      this.mods[mod.atributo] = {}
 
-    /**
+    this.mods[mod.atributo][mod.id] = mod;
+    //ÑAPA para que actualize el valor total
+    // this.valor++; this.valor--;
+  }
+
+  /**
  * 
- * @param {Animal} pj El personaje en el que se desequipa el objeto
+ * @param {ModHab} mod El modificador de objeto a eliminar
  */
-    desequipar(pj){
-      this.equipado=false;
-      if(this.listaMods){
+  delMod(mod) {
+    console.log(mod);
+    if (!this.mods[mod.atributo])
+      return;
 
-        for(let m in this.listaMods){
-          console.error(m);
-          pj.delModificadores(m)
-          // pj.delModificadores(this.listaMods[m])
-        }
-        
+    //ÑAPA para que actualize el valot total
+    this.valor++; this.valor--;
+
+    delete this.mods[mod.atributo][mod.id];
+    // this.t=this.total();
+
+  }
+
+  /**
+   * 
+   * @param {Animal} pj El personaje en el que se equipa el objeto
+   */
+  equipar(pj) {
+    this.equipado = true;
+    if (this.listaMods) {
+      for (let m in this.listaMods) {
+        console.error(m);
+        pj.addModificadores(this.listaMods[m])
       }
+
     }
+  }
+
+  /**
+* 
+* @param {Animal} pj El personaje en el que se desequipa el objeto
+*/
+  desequipar(pj) {
+    this.equipado = false;
+    if (this.listaMods) {
+
+      for (let m in this.listaMods) {
+        console.error(m);
+        pj.delModificadores(m)
+        // pj.delModificadores(this.listaMods[m])
+      }
+
+    }
+  }
 
 }
 
@@ -294,7 +294,7 @@ class Contenedor extends Objeto {
   constructor(nombre, peso, valor, max, multiplicador = 1) {
     super(nombre, peso, valor);
     this.multiplicador = multiplicador;
-    this.max = max||null;
+    this.max = max || null;
     this.objetos = [];
 
   }
@@ -303,7 +303,7 @@ class Contenedor extends Objeto {
     this.nombre = o.nombre;
     this.peso = o.peso;
     this.valor = o.valor;
-    this.max = o.max|| null;
+    this.max = o.max || null;
     // this.objetos= o.objetos ;
     let ot = [];
 
@@ -330,7 +330,7 @@ class Contenedor extends Objeto {
         //           else { oo = new Objeto() }
         oo.setAll(ob);
         ot.push(oo);
-        
+
       } catch (error) {
         console.error(ob);
         console.error(error);
@@ -372,17 +372,17 @@ class Contenedor extends Objeto {
   }
 
   darObjeto(objeto) {
-    var resultado=null;
+    var resultado = null;
     if (typeof objeto === "string") {
       return Object.values(this.objetos).filter(obj => obj.nombre === objeto)[0]
       this.objetos.forEach(o => {
         console.log(o.nombre);
-        if(o.nombre===objeto){
+        if (o.nombre === objeto) {
           console.log("ENCONTARDO");
           console.log(resultado);
-          resultado=o;
+          resultado = o;
           return resultado;
-        } 
+        }
       });
     }
     else {
@@ -604,7 +604,7 @@ class Arma extends Objeto {
   constructor(nombre, peso, longitud, valor, ...daños) {
     super(nombre, peso, valor);
     this.daños = daños;
-    this.longitud=longitud||null;
+    this.longitud = longitud || null;
     // console.log(this.daños);
     if (this.daños)
       this.index = 0
@@ -645,14 +645,14 @@ class Arma extends Objeto {
    */
   set Daño(valor) {
     // console.log(typeof valor);
-    this.dmg=valor;
+    this.dmg = valor;
   }
   get Daño() {
-   if (this.dmg){
-    return this.dmg;
-   }
-   //else return 0;
-   else this.dmg= this.daño.tirar();
+    if (this.dmg) {
+      return this.dmg;
+    }
+    //else return 0;
+    else this.dmg = this.daño.tirar();
   }
 
   setAll(o) {
@@ -677,24 +677,32 @@ class Arma extends Objeto {
       // this.index=0;
     });
     // o.daños.forEach(element => console.log(element.dado));
+  }
 
-
+  set Habilidad(h) {
+    this.habilidad = h;
+    // console.log('Habilidad del arma-->'+h);
+    
+  }
+  get Habilidad() {
+    if (this.habilidad) return this.habilidad;
+    return null;
 
   }
   dañar() {
     console.log(this.daños[this.index]);
   }
 
-  toString() {
-    let info=this.nombre;
-        this.daños?.forEach(d => {
-      if (d?.dado && d?.tipo) {
-       info+= " "+d.dado+ d.tipo+ "."
-      }
+  // toString() {
+  //   let info = this.nombre;
+  //   this.daños?.forEach(d => {
+  //     if (d?.dado && d?.tipo) {
+  //       info += " " + d.dado + d.tipo + "."
+  //     }
 
-    });
-     return info;
-    }
+  //   });
+  //   return info;
+  // }
 
 
 }
@@ -722,8 +730,8 @@ class ArmaDistancia extends Arma {
         this.daños[this.index].dado + this.municion.daño,
         this.daños[this.index].tipo
       )
-    }else
-    return this.daños[this.index] //o super()
+    } else
+      return this.daños[this.index] //o super()
   }
 
   /**
@@ -736,16 +744,16 @@ class ArmaDistancia extends Arma {
     }
     this.municion = municion;
     //Las modificaciones de la munición en el arma
-    if(municion.modArma)
-    this.addModificadores(municion.modArma)
+    if (municion.modArma)
+      this.addModificadores(municion.modArma)
     console.log(this.municion);
   }
-/**
- * quita la Municion actual
- */
+  /**
+   * quita la Municion actual
+   */
   quitar() {
     this.delModificadores(this.municion.nombre)
-    this.municion=null;
+    this.municion = null;
 
   }
 
@@ -773,30 +781,30 @@ class ArmaDistancia extends Arma {
  * @extends Objetos
  */
 class Municion extends Objetos {
-  constructor(nombre, peso, valor,ctd=1, daño, modArma
-   ) {
+  constructor(nombre, peso, valor, ctd = 1, daño, modArma
+  ) {
     //TODO: ver si lo pongo como mods normales
-    super (nombre, peso, valor, ctd = 1)
+    super(nombre, peso, valor, ctd = 1)
 
     if (daño)
-    /**
-     * El daño que sumar al arco. Debe empezar por + o - 
-     * @type {string}*/
-    this.daño=daño;
+      /**
+       * El daño que sumar al arco. Debe empezar por + o - 
+       * @type {string}*/
+      this.daño = daño;
 
-    if(modArma)
-    /**
-     * Es el Modificaciones que se aplicara al Arco
-     * @type {Modificaciones} 
-     */
-    this.modArma = new Modificaciones(nombre,modArma);
-  
+    if (modArma)
+      /**
+       * Es el Modificaciones que se aplicara al Arco
+       * @type {Modificaciones} 
+       */
+      this.modArma = new Modificaciones(nombre, modArma);
+
     // console.log("Municiones"+this.ctd);
   }
 
-  
 
-  
+
+
 }
 
 class Arco extends ArmaDistancia {
@@ -946,7 +954,7 @@ function filtroArmas(array, precioMax, tipoDaño) {
   }
   //DEBUG: DEVUELVE UN ARRAY CON LOS NOMBRES
   console.log(array.map(item => item.nombre));
-   
+
   return array;
 }
 

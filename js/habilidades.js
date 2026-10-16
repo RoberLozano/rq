@@ -1,4 +1,5 @@
 /* Roberto Lozano Sáez 2019 */
+const HABILIDADES_IMG_BASE_URL = new URL('../img/', document.currentScript.src);
 // class XP {
 //     constructor(
 //          xp               =0
@@ -632,7 +633,7 @@ class Habilidad extends XP {
       return TipoTirada.PIFIA; //la pifia siempre es pifia
 
     if (suerte.length > 0) {
-      // console.log("SUERTE"+suerte);
+      console.log("SUERTE"+suerte);
       let mejor = this.tirada(t);
       suerte.forEach(valor => {
         // let v= parseInt(valor)+parseInt(t);//si no concatena el hdp
@@ -726,14 +727,14 @@ class HabilidadEditable extends Habilidad {
     // if (this._total)
     //   return this._total
     // else return super.v;
-    return this._total || super.v;
+    return this._total ?? super.v;
   }
   set total(valor) {
     this._total = Math.round(+valor)
     // console.log( this._total);
   }
   get total() {
-    return this._total || this.v;
+    return this._total ?? this.v;
   }
   reset() {
     delete this._total;
@@ -1035,7 +1036,8 @@ class HabilidadMarcial extends Habilidad {
 * TODO: utiliza la variable global pj, tal vez deberia hacerlo desde Animal
 * o incluso un map golbal de Animales que se acceda por nombre
 */
-  get v() { return (this.arma?.bonificador) ? this.valor + this.bvalor + this.bh + this.arma.bonificador.valor : this.valor + this.bvalor + this.bh }
+  get v() {console.log('BON ARMA->', this.arma?.bonificador);
+   return (this.arma?.bonificador) ? this.valor + this.bvalor + this.bh + this.arma.bonificador.valor : this.valor + this.bvalor + this.bh }
 
   // get v(){ return (this.arma?.bonificador)?this.valor + this.bvalor + this.bh +this.arma.bonificador.valor: super.v}
 
@@ -1047,7 +1049,6 @@ class HabilidadMarcial extends Habilidad {
   // get v(){
   //     if(!this.arma || this.arma.bonificador) return super.v
   // }
-
 
 }
 
@@ -1161,7 +1162,7 @@ class MyCounter extends HTMLElement {
     const html = `
       <div id="grupo${this.habilidad.nombre}" class="input-group-prepend">
         <span id="lb${this.habilidad.nombre}" class="input-group-text col-6">${this.habilidad.nombre}: ${this.habilidad.v}%</span>
-        <span class="input-group-text dado"  id="dado"> <img src="img/10_sided_die.svg"></img></span>
+        <span class="input-group-text dado"  id="dado"> <img src="${new URL('10_sided_die.svg', HABILIDADES_IMG_BASE_URL).href}"></img></span>
         <input id="iDados" type="number" style="width: 2.3em;">
         <button id="btOK">OK</button>
       </div>
@@ -1193,7 +1194,7 @@ class MyCounter extends HTMLElement {
     this.habilidad = habilidad;
     this.shadowRoot.innerHTML = `<div id="grupo${this.habilidad.nombre}" class="input-group-prepend">
     <span id="lb${this.habilidad.nombre}" class="input-group-text col-6">${this.habilidad.nombre}: ${this.habilidad.v}%</span>
-    <span class="input-group-text dado"  id="dado"> <img src="img/10_sided_die.svg"></img></span>
+    <span class="input-group-text dado"  id="dado"> <img src="${new URL('10_sided_die.svg', HABILIDADES_IMG_BASE_URL).href}"></img></span>
     <input id="iDados" type="number" style="width: 2.3em;">
     <button id="btOK">OK</button>
   </div>
@@ -1272,14 +1273,17 @@ class InputHabilidad extends HTMLElement {
 
     this.icon = document.createElement('span');
     this.icon.setAttribute('class', 'icon');
-    this.icon.addEventListener('click', (event) => {
-
-      this.input.value = Math.floor(Math.random() * 100 + 1); //mal
-      // this.input.value = Math.round(Math.random() * 100); //mal
+    this.icon.addEventListener('click', async (event) => {
+      let val;
+      if (typeof window.roll1d100 === 'function') {
+        val = await window.roll1d100(null, this.habilidad);
+      } else if (typeof window.roll === 'function') {
+        val = await window.roll('1d100');
+      } else {
+        val = Math.floor(Math.random() * 100 + 1);
+      }
+      this.input.value = val;
       this.act(this.input);
-      // console.log(this.getAttribute('habilidad'));
-      // if(input.value>this.getAttribute('habilidad')) input.style.color="red"
-      // else input.style.color="black"
     });
 
     // const label = document.createElement('label');
@@ -1312,7 +1316,7 @@ class InputHabilidad extends HTMLElement {
     if (this.hasAttribute('img')) {
       imgUrl = this.getAttribute('img');
     } else {
-      imgUrl = 'img/10_sided_die.svg';
+      imgUrl = new URL('10_sided_die.svg', HABILIDADES_IMG_BASE_URL).href;
     }
 
     const img = document.createElement('img');
@@ -1327,7 +1331,7 @@ class InputHabilidad extends HTMLElement {
     // this.ok.classList.add("okay");
     this.ok = document.createElement('img');
 
-    this.ok.src = this.habilidad.ataque ? 'img/sword.svg' : 'img/shield.svg';
+    this.ok.src = new URL(this.habilidad.ataque ? 'sword.svg' : 'shield.svg', HABILIDADES_IMG_BASE_URL).href;
     //  this.ok.src = 'img/check.svg';
     // if (this.habilidad instanceof HabilidadMarcial) this.ok.src = this.habilidad.ataque?'img/sword.svg':'img/shield.svg';
     this.ok.addEventListener('click', (event) => {
@@ -1377,7 +1381,7 @@ class InputHabilidad extends HTMLElement {
             height: 30px;
             }
           .button.okay{
-            background:url('img/check.svg');
+            background:url('${new URL('check.svg', HABILIDADES_IMG_BASE_URL).href}');
              
             }
           .icon {
@@ -1464,7 +1468,7 @@ class InputHabilidad extends HTMLElement {
     this.label.setAttribute("value", this.habilidad.nombre);
     this.porcentaje.setAttribute("value", this.habilidad.v);
     this.porcentaje.value = this.habilidad.v;
-    this.ok.src = this.habilidad.ataque ? 'img/sword.svg' : 'img/check.svg';
+    this.ok.src = new URL(this.habilidad.ataque ? 'sword.svg' : 'check.svg', HABILIDADES_IMG_BASE_URL).href;
   }
 
   /**
@@ -1509,6 +1513,94 @@ class InputHabilidad extends HTMLElement {
 
 }
 
+//Crea un input de habilidad en que con un input puede crear una habilidad modificable, que se puede sumar, restar o multiplicar el valor total de la habilidad
+class InputHabilidadModificable extends InputHabilidad{
+  constructor(hab = new Habilidad("Habilidad", "Agilidad", 77), black = true) {
+    super(hab, black);
+    this.initialValue = this.habilidad.v;
+
+    this.modifierInput = document.createElement('input');
+    this.modifierInput.type = 'number';
+    this.modifierInput.step = 'any';
+    this.modifierInput.value = '0';
+    this.modifierInput.style.cssText = 'width:4em;box-sizing:border-box;padding:2px 4px;background:#1a1a1a;color:#e0e0e0;border:1px solid #444;border-radius:3px;';
+    this.modifierInput.setAttribute('aria-label', 'Valor del modificador');
+
+    this.operationSelect = document.createElement('select');
+    this.operationSelect.setAttribute('aria-label', 'Operación');
+    this.operationSelect.style.cssText = 'padding:2px 4px;background:#2d2d2d;color:#e0e0e0;border:1px solid #444;border-radius:3px;';
+    [
+      ['sumar', '+'],
+      ['restar', '-'],
+      ['multiplicar', '×']
+    ].forEach(([value, label]) => {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = label;
+      this.operationSelect.appendChild(option);
+    });
+
+    this.applyModifierButton = document.createElement('button');
+    this.applyModifierButton.type = 'button';
+    this.applyModifierButton.textContent = '✓';
+    this.applyModifierButton.title = 'Aplicar modificador';
+    this.applyModifierButton.setAttribute('aria-label', 'Aplicar modificador');
+    this.applyModifierButton.style.cssText = 'width:24px;height:24px;padding:0;background:#193b2a;color:#58d68d;border:1px solid #2e8b57;border-radius:3px;font-weight:bold;cursor:pointer;';
+    this.applyModifierButton.addEventListener('click', () => this.applyModifier());
+
+    this.resetModifierButton = document.createElement('button');
+    this.resetModifierButton.type = 'button';
+    this.resetModifierButton.textContent = '↺';
+    this.resetModifierButton.title = 'Restaurar valor inicial';
+    this.resetModifierButton.setAttribute('aria-label', 'Restaurar valor inicial');
+    this.resetModifierButton.style.cssText = 'width:24px;height:24px;padding:0;background:#2d2d2d;color:#e0e0e0;border:1px solid #555;border-radius:3px;cursor:pointer;';
+    this.resetModifierButton.addEventListener('click', () => this.resetModifier());
+
+    this.modifierControls = document.createElement('span');
+    this.modifierControls.style.cssText = 'display:inline-flex;align-items:center;gap:3px;margin-left:4px;vertical-align:middle;';
+    this.modifierControls.append(this.modifierInput, this.operationSelect, this.applyModifierButton, this.resetModifierButton);
+    this.wrapper.appendChild(this.modifierControls);
+
+    this.label.addEventListener('change', () => {
+      this.initialValue = this.habilidad.v;
+    });
+  }
+
+  setHabilidad(habilidad) {
+    super.setHabilidad(habilidad);
+    if (this.initialValue !== undefined) {
+      this.initialValue = this.habilidad.v;
+    }
+  }
+
+  resetModifier() {
+    this.habilidad.total = this.initialValue;
+    this.porcentaje.value = this.initialValue;
+    this.porcentaje.setAttribute('value', this.initialValue);
+    this.modifierInput.value = '0';
+  }
+
+  applyModifier() {
+    const amount = parseFloat(this.modifierInput.value);
+    if (!Number.isFinite(amount)) return;
+
+    switch (this.operationSelect.value) {
+      case 'sumar':
+        this.habilidad.sumar(amount);
+        break;
+      case 'restar':
+        this.habilidad.sumar(-amount);
+        break;
+      case 'multiplicar':
+        this.habilidad.multiplicar(amount);
+        break;
+    }
+
+    this.porcentaje.value = this.habilidad.v;
+    this.porcentaje.setAttribute('value', this.habilidad.v);
+  }
+}
+
 class InputSubirHabilidad extends InputHabilidad {
 
   constructor(hab = new Habilidad("Habilidad", "Agilidad", 77)) {
@@ -1548,7 +1640,7 @@ class InputSubirHabilidad extends InputHabilidad {
 
     //Imagen del dado de 6
     const img = document.createElement('img');
-    img.src = 'img/6_sided_die.svg';
+    img.src = new URL('6_sided_die.svg', HABILIDADES_IMG_BASE_URL).href;
     this.dado.appendChild(img);
 
     //SOBREESCRIBIR OK para que haga otra cosa el click
@@ -1603,7 +1695,7 @@ class InputSubirHabilidad extends InputHabilidad {
     this.porcentaje.setAttribute("value", this.habilidad.subible());
     this.porcentaje.value = this.habilidad.subible();
     this.percent.innerHTML = '⇈⇧⇑'//"<span style='font-size: 20px;'>⇈⇧</span>"
-    this.ok.src = 'img/check.svg';
+    this.ok.src = new URL('check.svg', HABILIDADES_IMG_BASE_URL).href;
   }
 
   /**Cambia el dado con el que se sube
@@ -2290,6 +2382,7 @@ customElements.define('input-custom', InputCustom);
 // Define the new element
 
 customElements.define('input-habilidad', InputHabilidad);
+customElements.define('input-habilidad-modificable', InputHabilidadModificable);
 customElements.define('input-hechizo', InputHechizo);
 
 customElements.define('input-arte', InputArte);

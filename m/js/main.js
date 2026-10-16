@@ -423,3 +423,10 @@ async function ejecutarModulo(tirada) {
   console.log(await modulo.roll1d100(tirada));
 }
 
+async function ejecutarTirada(tirada) {
+  // Importamos el archivo dinámicamente
+  const modulo = await import('./dice-roller.js');
+  
+  // Usamos el método exportado
+  console.log(await modulo.roll(tirada));
+}

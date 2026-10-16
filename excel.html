@@ -1,0 +1,48 @@
+﻿<!DOCTYPE html
+  PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+  <title>Cargar Excel</title>
+
+</head>
+
+<body>
+  <input type="file" id="fileUpload" onselect="alert('Cargado');console.log('ficha')" />
+  <input type="button" id="upload" value="Cargar" onclick="Upload()" />
+  <input type="button" id="guardar" value="Guardar" onclick="guardar()" />
+  <hr />
+  <div id="dvExcel">
+  </div>
+  <div id="opciones"></div>
+  <div id='inputs'></div>
+
+  <div id="salida">SALIDA:<br></div>
+
+  <canvas id="myChart" width="200" height="200"></canvas>
+
+
+  <!-- <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.13.5/xlsx.full.min.js"></script> -->
+  <!-- <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.13.5/jszip.js"></script> -->
+
+  <!-- <link rel="stylesheet" href="uplot/uPlot.min.css"> -->
+  <!-- TODOS LOS SCRIPTS -->
+  <script src="js/xlsx.full.min.js"></script>
+  <script src='js/D.js'></script>
+  <script src='js/habilidades.js'></script>
+  <script src='js/inventario.js'></script>
+  <script src='js/localizaciones.js'></script>
+  <!-- <script src='js/coor.js'></script> -->
+
+  <script src='js/rol.js'></script>
+  <script src="js/ex.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/armaduras.js"></script>
+
+  <!-- <script src="uplot/uPlot.iife.min.js"></script>
+  <script src="js/Chart.bundle.min.js"></script> -->
+
+
+</body>
+
+</html>

@@ -51,20 +51,65 @@ function hablarTexto(texto) {
 const COMANDOS = [
     // ── Dados ─────────────────────────────────────────────────────────────────
     {
-        patron: /\b(lanzar|tirar|lanza|tira)\b.*?\b(cien|1\s*d\s*100|d\s*100)\b/i,
+        patron: /\b(lanzar|tirar|lanza|tira)\b.*?\b(cien|100|1\s*d\s*100|d\s*100)\b/i,
         ayuda: '«Lanzar cien» / «Tirar 1d100» — Lanza un d100',
         accion: () => {
-            if (typeof roll1d100 === 'function') roll1d100();
+            if (typeof ejecutarTirada === 'function') ejecutarTirada('1d100');
             else console.warn('[Voz] roll1d100 no disponible');
         }
     },
+    // {
+    //     patron: /\b(lanzar|tirar|lanza|tira)\s+(.+)/i,
+    //     ayuda: '«Lanzar 2d6» — Lanza la notación de dados indicada',
+    //     accion: (m) => {
+    //         const expr = m[2].trim();
+    //         if (typeof ejecutarTirada === 'function') ejecutarTirada(expr);
+    //         else console.warn('[Voz] roll no disponible');
+    //     }
+    // },
     {
-        patron: /\b(lanzar|tirar|lanza|tira)\s+(.+)/i,
-        ayuda: '«Lanzar 2d6» — Lanza la notación de dados indicada',
+        patron: /\b(lanzar|tirar|lanza|lanzo|tira)\b(.+)/i,
+        ayuda: '«Lanzar 3 dados de 6» / «Lanza un dado de diez más un dado de cuatro» — Lanza dados con texto o números',
         accion: (m) => {
-            const expr = m[2].trim();
-            if (typeof roll === 'function') roll(expr);
-            else console.warn('[Voz] roll no disponible');
+            const texto = m[2].trim();
+            console.log(`[Voz] Procesando: "${texto}"`);
+            
+            // Dividir por conectores 'más', 'y', 'mas'
+            const partesTexto = texto.split(/\s+(?:más|y|mas)\s+/i);
+            const partes = [];
+            
+            partesTexto.forEach((parte, index) => {
+                // Extraer "X dados de Y" de cada parte
+                const regexDados = /([a-zA-Záéíóúñü\s\d]+)\s+dado[s]?\s+de\s+([a-zA-Záéíóúñü\s\d]+)/i;
+                const match = regexDados.exec(parte.trim());
+                
+                if (match) {
+                    const textoCantidad = match[1].trim();
+                    const textoCaras = match[2].trim();
+                    
+                    // Convertir texto a números
+                    const cantidad = parseInt(textoCantidad) || textoaNumero(textoCantidad);
+                    const caras = parseInt(textoCaras) || textoaNumero(textoCaras);
+                    
+                    if (cantidad && cantidad > 0 && caras && caras > 0) {
+                        partes.push(`${cantidad}d${caras}`);
+                        console.log(`[Voz] Parte ${index + 1}: "${textoCantidad} dados de ${textoCaras}" -> "${cantidad}d${caras}"`);
+                    } else {
+                        console.warn('[Voz] No se pudo interpretar la parte:', parte);
+                    }
+                } else {
+                    console.warn('[Voz] No se encontró patrón de dados en:', parte);
+                }
+            });
+            
+            if (partes.length > 0) {
+                const expr = partes.join('+');
+                console.log(`[Voz] Expresión final: "${expr}"`);
+                if (typeof ejecutarTirada === 'function') ejecutarTirada(expr);
+                else console.warn('[Voz] ejecutarTirada no disponible');
+            } else {
+                console.warn('[Voz] No se encontraron patrones de dados válidos en:', texto);
+            }
         }
     },
 
@@ -126,6 +171,19 @@ const COMANDOS = [
         ayuda: '«Deseleccionar todos» — Deselecciona todos los personajes',
         accion: () => {
             if (typeof CharacterController !== 'undefined') CharacterController.deselectAll();
+        }
+    },
+
+    //invertir selección de los pj
+    {
+        patron: /\binvertir\s+selección\b/i,
+        ayuda: '«Invertir selección» — Invierte la selección de personajes',
+        accion: () => {
+            if (typeof CharacterController !== 'undefined') {
+                CharacterController.characters.forEach((character) => {
+                    CharacterController.toggleSelection(character);
+                });
+            }
         }
     },
 
@@ -340,6 +398,97 @@ const VoiceController = (() => {
         }
     };
 })();
+
+
+//función auxiliar para convertir texto a número
+function textoaNumero(s) {
+    if (parseInt(s)) return parseInt(s);
+    s = s.toLowerCase();
+    s = s.replace('y', '');
+    s = s.replace('veinti', 'veinte ')
+    var Small = {
+        'cero': 0,
+        'uno': 1,
+        'un': 1,
+        'una': 1,
+        'dos': 2,
+        'tres': 3,
+        'trés': 3,
+        'cuatro': 4,
+        'cinco': 5,
+        'seis': 6,
+        'séis': 6,
+        'siete': 7,
+        'ocho': 8,
+        'nueve': 9,
+        'diez': 10,
+        'once': 11,
+        'doce': 12,
+        'trece': 13,
+        'catorce': 14,
+        'quince': 15,
+        'dieciséis': 16,
+        'diecisiete': 17,
+        'dieciocho': 18,
+        'diecinueve': 19,
+        'veinte': 20,
+        'treinta': 30,
+        'cuarenta': 40,
+        'cincuenta': 50,
+        'sesenta': 60,
+        'setenta': 70,
+        'ochenta': 80,
+        'noventa': 90,
+        'cien': 100,
+        'ciento': 100,
+    };
+
+    var Magnitud = {
+        'mil': 1000,
+        'millones': 1000000,
+        'mil millones': 1000000000,
+        'trillón': 1000000000000,
+        'cuatrillones': 1000000000000000,
+        'quintillón': 1000000000000000000,
+        'sextillón': 1000000000000000000000,
+        'septillones': 10000000000000000000000000,
+        'octillón': 10000000000000000000000000000,
+        'nonillion': 10000000000000000000000000000000,
+        'decillón': 10000000000000000000000000000000000,
+    };
+
+    var a, n, g;
+
+    console.log("S es :" + s);
+    return text2num(s);
+
+    function text2num(s) {
+        a = s.toString().split(/[\s-]+/);
+        n = 0;
+        g = 0;
+        a.forEach(feach);
+        return n + g;
+    }
+
+    function feach(w) {
+        var x = Small[w];
+        if (x != null) {
+            g = g + x;
+        }
+
+        else {
+            x = Magnitud[w];
+            if (x != null) {
+                n = n + g * x
+                g = 0;
+            }
+            else {
+                alert("Unknown number: " + w);
+            }
+        }
+    }
+
+}
 
 // ─── Arranque ─────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {

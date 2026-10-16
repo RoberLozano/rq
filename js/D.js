@@ -460,6 +460,10 @@ class Daño {
 		//   return sumatorio;
 
 	}
+
+	toString() {
+		return this.dado + this.tipo;
+	}
 }
 
 class InputDaño extends HTMLElement {
