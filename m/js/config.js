@@ -37,7 +37,7 @@ const CONFIG = {
         'Caballería Desierto Cimitarra Escudo 01.png',
         'Caballería Desierto Estandarte 01.png',
         'Caballería Desierto Lanza 01.png',
-        'Caballero Mandoble',
+        'Caballero Mandoble.png',
         'Guardia Arquero 01.png',
         'Guardia Arquero Reposo 01.png',
         'Guardia Ballesta 01.png',
@@ -78,7 +78,8 @@ const CONFIG = {
         'Rosssel.png',
         'Rosssel.webp',
         'Wolfstein Einhorn.png',
-        'Wolfstein.webp'
+        'Wolfstein.webp',
+        'Zaahira.webp'
     ],
     
     // Zoom settings
