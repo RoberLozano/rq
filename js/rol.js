@@ -84,6 +84,7 @@ try {
 
 
 
+
 class Efecto {
   // constructor(nombre, efecto, obj, fecha = 0) {
   constructor(nombre, efecto = new Daño('1d3', 'Fuego'), fecha = 0) {

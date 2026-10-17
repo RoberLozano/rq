@@ -1047,22 +1047,21 @@ const CharacterController = {
                 .combat-section { min-width:0; padding:8px; background:#222; border:1px solid #3d3d3d; border-radius:4px; }
                 .combat-section h4 { margin:0 0 6px; font-size:14px; }
                 .attack-section { margin-bottom:6px; }
-                .attack-section label, .damage-controls label { display:block; margin-bottom:3px; color:#b7b7b7; font-size:11px; }
-                .dark-select, .dark-input { width:100%; min-width:0; box-sizing:border-box; padding:6px; background:#151515; color:#e0e0e0; border:1px solid #4a4a4a; border-radius:3px; font-size:13px; }
+                .attack-section label, .damage-controls label, .combat-technique summary, .combat-grade small, .combat-grade strong, #combatResolutionDetail { font-size:12px; }
+                .dark-select, .dark-input { width:100%; min-width:0; box-sizing:border-box; padding:6px; background:#151515; color:#e0e0e0; border:1px solid #4a4a4a; border-radius:3px; font-size:12px; }
                 .dark-select:focus, .dark-input:focus { outline:2px solid #55a5a0; outline-offset:1px; }
                 .dark-select:disabled, .dark-input:disabled { opacity:.55; }
                 .combat-technique { margin-top:6px; border-top:1px solid #444; padding-top:6px; }
-                .combat-technique summary { padding:5px 0; color:#d5d5d5; font-size:12px; cursor:pointer; }
+                .combat-technique summary { padding:5px 0; color:#d5d5d5; cursor:pointer; }
                 .combat-adjustment { display:grid; grid-template-columns:minmax(0,1fr) 74px; gap:6px; }
                 .combat-result { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:5px; margin-top:7px; }
                 .combat-grade { min-width:0; padding:6px 3px; background:#151515; border:1px solid #444; border-radius:3px; text-align:center; }
                 .combat-grade small { display:block; margin-bottom:4px; color:#aaa; }
-                .combat-grade strong { font-size:12px; overflow-wrap:anywhere; }
+                .combat-grade strong { overflow-wrap:anywhere; }
                 #combatFinalGrade { color:#73d3bd; }
-                #combatResolutionDetail { min-height:14px; margin:5px 0 0; color:#aaa; font-size:11px; }
+                #combatResolutionDetail { min-height:14px; margin:5px 0 0; color:#aaa; }
                 .damage-controls { margin-top:7px; padding:8px; background:#222; border:1px solid #3d3d3d; border-radius:4px; }
-                .damage-row { display:grid; grid-template-columns:minmax(0,2fr) minmax(70px,.8fr) auto; align-items:end; gap:6px; }
-                .location-input { display:grid; grid-template-columns:minmax(0,2fr) minmax(60px,.8fr) auto; align-items:end; gap:6px; margin-top:6px; }
+                .damage-row { display:grid; grid-template-columns:minmax(0,1.8fr) minmax(66px,.75fr) auto minmax(0,1.8fr) minmax(56px,.7fr) auto; align-items:end; gap:6px; }
                 .roll-dmg-btn, .combat-icon-button, .combat-button { display:inline-flex; align-items:center; justify-content:center; min-height:38px; padding:5px 8px; color:#eee; background:#303c38; border:1px solid #55746b; border-radius:3px; cursor:pointer; }
                 .combat-icon-button { width:38px; padding:4px; }
                 .combat-icon-button img { width:26px; height:26px; }
@@ -1140,8 +1139,6 @@ const CharacterController = {
                             <div><label for="combatDamageType">Daño del arma</label><select id="combatDamageType" class="dark-select"></select></div>
                             <div><label for="combatDamage">Cantidad</label><input type="number" id="combatDamage" class="dark-input" min="0" value="0"></div>
                             <button type="button" id="rollCombatDamage" class="roll-dmg-btn" title="Volver a tirar el daño">🎲</button>
-                        </div>
-                        <div class="location-input">
                             <div><label for="combatLocation">Localización</label><select id="combatLocation" class="dark-select"></select></div>
                             <div><label for="combatLocationRoll">Tirada</label><input type="number" id="combatLocationRoll" class="dark-input" min="1" max="100" value="1"></div>
                             <button type="button" id="rollCombatLocation" class="combat-icon-button" title="Tirar localización"><img src="../img/10_sided_die.svg" alt=""></button>
