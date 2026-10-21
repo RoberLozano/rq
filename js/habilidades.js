@@ -1087,7 +1087,7 @@ class HabilidadDistancia extends HabilidadMarcial {
 
     }
     //si está en alcance al menos 1
-    return Math.max(1, super.v - pen);
+    return Math.max(1, parseInt(super.v - pen));
   }
 
 }

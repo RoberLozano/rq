@@ -97,6 +97,7 @@ const CONFIG = {
     
     // Distance and time settings
     distanceScaleFactor: 1, // Metros por unidad de mapa
+    closeCombatDistance: 2, // Distancia máxima en metros para combate cuerpo a cuerpo
     defaultSpeed: 5, // Velocidad por defecto en km/h
     
     // App version

@@ -63,6 +63,7 @@ const CharacterController = {
 
         // Inicializar controlador para el checkbox de auto-confirmación
         this.initAutoConfirmMove();
+        this.initCombatDistanceOption();
 
         this.initRouteSimulationControls();
     },
@@ -80,6 +81,20 @@ const CharacterController = {
         autoConfirmCheckbox.addEventListener('change', () => {
             this.autoConfirmMove = autoConfirmCheckbox.checked;
             console.log(`Auto-confirmación de movimientos: ${this.autoConfirmMove ? 'Activada' : 'Desactivada'}`);
+        });
+    },
+
+    initCombatDistanceOption() {
+        const input = document.getElementById('closeCombatDistance');
+        if (!input) return;
+        input.value = CONFIG.closeCombatDistance;
+        input.addEventListener('change', () => {
+            const distance = Number(input.value);
+            if (!Number.isFinite(distance) || distance < 0) {
+                input.value = CONFIG.closeCombatDistance;
+                return;
+            }
+            CONFIG.closeCombatDistance = distance;
         });
     },
 
@@ -713,7 +728,10 @@ const CharacterController = {
      */
     getHabilidadesOfensivasPersonaje(personaje, arma) {
         if (!personaje?.getHabilidades) return [];
-        return personaje.getHabilidades(h => (h instanceof HabilidadMarcial || h.clase === 'HabilidadMarcial') && h.ataque !== false);
+        return personaje.getHabilidades(h =>
+            (h instanceof HabilidadMarcial || ['HabilidadMarcial', 'HabilidadDistancia', 'Tecnica'].includes(h.clase))
+            && h.ataque !== false
+        );
     },
 
     /**
@@ -774,6 +792,8 @@ const CharacterController = {
         const combat = this.currentCombat;
         combat.results = { attack: null, defense: null, technique: null, defenseTechnique: null };
         const weaponSelect = modal.querySelector('#combatWeapon');
+        const ammunitionSelect = modal.querySelector('#combatAmmunition');
+        const ammunitionSection = modal.querySelector('#combatAmmunitionSection');
         const attackSkillSelect = modal.querySelector('#combatAttackSkill');
         const attackSkillContainer = modal.querySelector('#combatAttackRoll');
         const techniqueSelect = modal.querySelector('#combatTechnique');
@@ -792,18 +812,48 @@ const CharacterController = {
         modal.querySelector('#combatNoDefense').checked = false;
         let lastDamageGrade = null;
 
-        const attackerWeapons = this.getArmasPersonaje(attackerPersonaje);
+        const availableAttackerWeapons = this.getArmasPersonaje(attackerPersonaje);
+        const combatDistance = SVGUtils.distancia(combat.attackerElement, combat.targetElement);
+        const combatDistanceReference = this.getCombatDistance(combat);
+        console.log('[Combate] Comparación de distancia', {
+            generic: combatDistance,
+            getCombatDistance: combatDistanceReference,
+            matches: combatDistance === combatDistanceReference
+        });
+        const isWithinStraightRange = weapon => {
+            if (combatDistance === null || !(weapon instanceof ArmaDistancia)) return false;
+            const straightRange = Number(weapon.total?.('alcanceRecto') ?? weapon.alcanceRecto);
+            return Number.isFinite(straightRange) && combatDistance <= straightRange;
+        };
+        const rangedCombat = combatDistance !== null && combatDistance > CONFIG.closeCombatDistance;
+        combat.isRangedAttack = rangedCombat;
+        const attackerWeapons = combatDistance === null
+            ? availableAttackerWeapons
+            : availableAttackerWeapons.filter(weapon =>
+                rangedCombat ? weapon instanceof ArmaDistancia : !(weapon instanceof ArmaDistancia)
+            );
+        combat.attackerWeapons = attackerWeapons;
+        const availableAmmunition = attackerPersonaje?.inventario?.darClaseRecursiva?.(Municion) || [];
+        const isDistanceSkill = skill => skill instanceof HabilidadDistancia || skill.clase === 'HabilidadDistancia';
         const attackerSkills = this.getHabilidadesOfensivasPersonaje(attackerPersonaje)
-            .filter(skill => !(skill instanceof Tecnica) && skill.clase !== 'Tecnica');
+            .filter(skill => !(skill instanceof Tecnica) && skill.clase !== 'Tecnica')
+            .filter(skill => combatDistance === null || isDistanceSkill(skill) === rangedCombat);
         const techniques = this.getHabilidadesOfensivasPersonaje(attackerPersonaje)
             .filter(skill => skill instanceof Tecnica || skill.clase === 'Tecnica');
 
         weaponSelect.innerHTML = attackerWeapons.length
-            ? attackerWeapons.map((weapon, index) => `<option value="${index}">${weapon.nombre}</option>`).join('')
+            ? attackerWeapons.map((weapon, index) => `<option value="${index}"${isWithinStraightRange(weapon) ? ' class="weapon-in-straight-range"' : ''}>${weapon.nombre}</option>`).join('')
             : '<option value="">(Sin armas)</option>';
-        attackSkillSelect.innerHTML = attackerSkills.length
-            ? attackerSkills.map(skill => `<option value="${skill.nombre}">${skill.nombre} (${skill.v ?? skill.valor}%)</option>`).join('')
-            : '<option value="">(Sin habilidades de ataque)</option>';
+        const updateStraightRangeIndicators = () => {
+            attackerWeapons.forEach((weapon, index) => {
+                const inStraightRange = isWithinStraightRange(weapon);
+                const option = weaponSelect.options[index];
+                option.classList.toggle('weapon-in-straight-range', inStraightRange);
+                option.style.color = inStraightRange ? '#73d3bd' : '';
+            });
+            const selectedWeapon = attackerWeapons[weaponSelect.value] || attackerWeapons[0];
+            weaponSelect.style.color = isWithinStraightRange(selectedWeapon) ? '#73d3bd' : '';
+        };
         techniqueSelect.innerHTML = '<option value="">Sin Técnica</option>' + techniques
             .map(skill => `<option value="${skill.nombre}">${skill.nombre} (${skill.v ?? skill.valor}%) · PF ${skill.pf || 0}</option>`).join('');
 
@@ -821,9 +871,31 @@ const CharacterController = {
         defenseTechniqueSelect.innerHTML = '<option value="">Sin Técnica defensiva</option>' + defenseTechniques
             .map(skill => `<option value="${skill.nombre}">${skill.nombre} (${skill.v ?? skill.valor}%) · PF ${skill.pf || 0}</option>`).join('');
 
+        const updateAmmunitionOptions = weapon => {
+            const rangedWeapon = weapon instanceof ArmaDistancia;
+            ammunitionSection.hidden = !rangedWeapon;
+            if (!rangedWeapon) {
+                ammunitionSelect.innerHTML = '';
+                return;
+            }
+            ammunitionSelect.innerHTML = '<option value="">Sin munición</option>' + availableAmmunition
+                .map((ammunition, index) => `<option value="${index}">${ammunition.nombre}${ammunition.daño ? ` (${ammunition.daño})` : ''} · ${ammunition.ctd ?? 1}</option>`)
+                .join('');
+            const currentAmmunitionIndex = availableAmmunition.findIndex(ammunition =>
+                ammunition === weapon.municion || ammunition.nombre === weapon.municion?.nombre
+            );
+            ammunitionSelect.value = currentAmmunitionIndex >= 0 ? String(currentAmmunitionIndex) : '';
+        };
+
         const syncDamage = (degree) => {
             const weapon = attackerWeapons[weaponSelect.value] || attackerWeapons[0];
             if (!weapon?.daño || degree < TipoTirada.EXITO) {
+                console.warn('[Combate] No se calcula daño', {
+                    weapon,
+                    daños: weapon?.daños,
+                    dañoActual: weapon?.daño,
+                    degree
+                });
                 damageInput.value = 0;
                 lastDamageGrade = degree;
                 return;
@@ -832,7 +904,16 @@ const CharacterController = {
                 const damageIndex = parseInt(damageTypeSelect.value, 10);
                 if (Number.isInteger(damageIndex)) weapon.daño = damageIndex;
             }
-            damageInput.value = weapon.daño.tirar(degree);
+            const rolledDamage = weapon.daño.tirar(degree);
+            damageInput.value = rolledDamage;
+            console.log('[Combate] Daño calculado', {
+                weapon,
+                daños: weapon.daños,
+                dañoSeleccionado: weapon.daño,
+                index: weapon.index,
+                degree,
+                rolledDamage
+            });
             lastDamageGrade = degree;
         };
 
@@ -851,6 +932,9 @@ const CharacterController = {
             defenseTechniqueTargetSelect.disabled = !defenseTechniqueSelect.value || !defenseTechniqueSucceeded;
             const { attackGrade, defenseGrade, effectiveAttack, effectiveDefense } = this.getCombatAdjustedGrades(combat, modal);
             const finalGrade = this.getCombatResultGrade(effectiveAttack, effectiveDefense);
+            modal.querySelector('#combatAttackType').textContent = combatDistance === null
+                ? '(distancia desconocida)'
+                : `(${rangedCombat ? 'a distancia' : 'cuerpo a cuerpo'} · ${combatDistance.toFixed(1)} m)`;
 
             modal.querySelector('#combatAttackGrade').textContent = attackGrade === null ? 'Pendiente' : TipoTirada.tirada[attackGrade];
             modal.querySelector('#combatDefenseGrade').textContent = noDefense || !defenseSkillSelect.value
@@ -858,9 +942,10 @@ const CharacterController = {
                 : defenseGrade === null ? 'Pendiente' : TipoTirada.tirada[defenseGrade];
             modal.querySelector('#combatTechniqueGrade').textContent = `Atq: ${results.technique === null ? '—' : TipoTirada.tirada[results.technique]} · Def: ${results.defenseTechnique === null ? '—' : TipoTirada.tirada[results.defenseTechnique]}`;
             modal.querySelector('#combatFinalGrade').textContent = finalGrade === null ? 'Pendiente' : TipoTirada.tirada[finalGrade];
+            const rangedAttack = isDistanceSkill(combat.attackSkill);
             modal.querySelector('#combatResolutionDetail').textContent = finalGrade === null
                 ? 'Completa las tiradas de ataque y defensa, o marca que no hay defensa.'
-                : `Ataque ${TipoTirada.tirada[effectiveAttack]} − ${noDefense || !defenseSkillSelect.value ? 'sin parada/esquiva' : `defensa ${TipoTirada.tirada[effectiveDefense]}`}`;
+                : `Ataque ${TipoTirada.tirada[effectiveAttack]} − ${noDefense || !defenseSkillSelect.value ? 'sin parada/esquiva' : `defensa ${TipoTirada.tirada[effectiveDefense]}${rangedAttack ? ' (−2 grados; mínimo fallo contra ataque a distancia)' : ''}`}`;
 
             const canApplyDamage = finalGrade !== null && finalGrade >= TipoTirada.EXITO;
             applyButton.disabled = !canApplyDamage;
@@ -882,6 +967,13 @@ const CharacterController = {
             const inputHab = new InputHabilidadModificable(skill, true);
             inputHab.setPersonaje(character);
             inputHab.setHabilidad(skill);
+            if (isDistanceSkill(skill)) {
+                const adjustedValue = skill.v;
+                inputHab.habilidad.total = adjustedValue;
+                inputHab.initialValue = adjustedValue;
+                inputHab.porcentaje.value = adjustedValue;
+                inputHab.porcentaje.setAttribute('value', adjustedValue);
+            }
             const originalAct = inputHab.act.bind(inputHab);
             inputHab.act = input => {
                 const degree = originalAct(input);
@@ -894,11 +986,26 @@ const CharacterController = {
 
         const updateAttackSkill = (preferWeaponSkill = false) => {
             const weapon = attackerWeapons[weaponSelect.value] || attackerWeapons[0];
+            updateStraightRangeIndicators();
+            const previousSkillName = attackSkillSelect.value;
+            attackerSkills.forEach(skill => {
+                if (isDistanceSkill(skill)) {
+                    skill.arma = weapon;
+                    skill.distancia = combatDistance ?? 0;
+                }
+            });
             const weaponSkillNames = [weapon?.Habilidad, weapon?.Habilidad && `${weapon.Habilidad} D`, weapon?.Habilidad && `${weapon.Habilidad} I`, weapon?.nombre && `${weapon.nombre} D`, weapon?.nombre && `${weapon.nombre} I`]
                 .filter(Boolean).map(name => name.toLowerCase());
             const weaponSkill = attackerSkills.find(item => weaponSkillNames.includes(item.nombre.toLowerCase()));
-            if (preferWeaponSkill && weaponSkill) attackSkillSelect.value = weaponSkill.nombre;
-            const skill = attackerSkills.find(item => item.nombre === attackSkillSelect.value) || weaponSkill || attackerSkills[0];
+            const skill = (preferWeaponSkill ? weaponSkill : null)
+                || attackerSkills.find(item => item.nombre === previousSkillName)
+                || weaponSkill
+                || attackerSkills[0];
+            attackSkillSelect.innerHTML = attackerSkills.length
+                ? attackerSkills.map(item => `<option value="${item.nombre}">${item.nombre} (${item.v ?? item.valor}%)</option>`).join('')
+                : '<option value="">(Sin habilidad de ataque compatible)</option>';
+            attackSkillSelect.value = skill?.nombre || '';
+            combat.attackSkill = skill || null;
             combat.results.attack = null;
             attachRoll(skill, attackerPersonaje, attackSkillContainer, 'attack', weapon);
             updateWeaponDamage();
@@ -908,8 +1015,15 @@ const CharacterController = {
         const updateWeaponDamage = () => {
             const weapon = attackerWeapons[weaponSelect.value] || attackerWeapons[0];
             const damageOptions = weapon?.daños || [];
+            updateAmmunitionOptions(weapon);
+            console.log('[Combate] Arma seleccionada para el ataque:', weapon);
+            console.log('[Combate] Daños disponibles:', damageOptions, 'munición:', weapon?.municion, 'daño actual:', weapon?.daño);
             damageTypeSelect.innerHTML = damageOptions.length
-                ? damageOptions.map((damage, index) => `<option value="${index}" ${index === (weapon.index ?? 0) ? 'selected' : ''}>${damage.dado}${damage.tipo ? ` [${damage.tipo}]` : ''}</option>`).join('')
+                ? damageOptions.map((damage, index) => {
+                    const ammunitionBonus = weapon?.municion?.daño || '';
+                    const effectiveDice = `${damage.dado}${ammunitionBonus}`;
+                    return `<option value="${index}" ${index === (weapon.index ?? 0) ? 'selected' : ''}>${effectiveDice}${damage.tipo ? ` [${damage.tipo}]` : ''}</option>`;
+                }).join('')
                 : '<option value="">(Sin daño)</option>';
             lastDamageGrade = null;
             const finalGrade = updateResolution();
@@ -953,6 +1067,23 @@ const CharacterController = {
         };
 
         weaponSelect.onchange = () => updateAttackSkill(true);
+        ammunitionSelect.onchange = () => {
+            const weapon = attackerWeapons[weaponSelect.value] || attackerWeapons[0];
+            if (!(weapon instanceof ArmaDistancia)) return;
+            if (ammunitionSelect.value === '') {
+                if (weapon.municion) weapon.quitar();
+            } else {
+                const ammunition = availableAmmunition[Number(ammunitionSelect.value)];
+                if (ammunition) weapon.utilizar(ammunition);
+            }
+            console.log('[Combate] Alcances tras cambiar munición', {
+                weapon: weapon.nombre,
+                ammunition: weapon.municion,
+                alcanceRecto: weapon.total('alcanceRecto'),
+                alcance: weapon.total('alcance')
+            });
+            updateAttackSkill();
+        };
         attackSkillSelect.onchange = () => updateAttackSkill();
         defendWeaponSelect.onchange = updateDefenseWeapon;
         defenseSkillSelect.onchange = updateDefenseSkill;
@@ -1046,11 +1177,13 @@ const CharacterController = {
                 .combat-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; }
                 .combat-section { min-width:0; padding:8px; background:#222; border:1px solid #3d3d3d; border-radius:4px; }
                 .combat-section h4 { margin:0 0 6px; font-size:14px; }
+                .combat-attack-type { color:#aaa; font-size:12px; font-weight:400; }
                 .attack-section { margin-bottom:6px; }
                 .attack-section label, .damage-controls label, .combat-technique summary, .combat-grade small, .combat-grade strong, #combatResolutionDetail { font-size:12px; }
                 .dark-select, .dark-input { width:100%; min-width:0; box-sizing:border-box; padding:6px; background:#151515; color:#e0e0e0; border:1px solid #4a4a4a; border-radius:3px; font-size:12px; }
                 .dark-select:focus, .dark-input:focus { outline:2px solid #55a5a0; outline-offset:1px; }
                 .dark-select:disabled, .dark-input:disabled { opacity:.55; }
+                .dark-select option.weapon-in-straight-range { color:#73d3bd; }
                 .combat-technique { margin-top:6px; border-top:1px solid #444; padding-top:6px; }
                 .combat-technique summary { padding:5px 0; color:#d5d5d5; cursor:pointer; }
                 .combat-adjustment { display:grid; grid-template-columns:minmax(0,1fr) 74px; gap:6px; }
@@ -1095,8 +1228,9 @@ const CharacterController = {
                     </div>
                     <div class="combat-grid">
                         <section class="combat-section">
-                            <h4>⚔️ Ataque</h4>
+                            <h4>⚔️ Ataque <span id="combatAttackType" class="combat-attack-type"></span></h4>
                             <div class="attack-section"><label for="combatWeapon">Arma</label><select id="combatWeapon" class="dark-select"></select></div>
+                            <div class="attack-section" id="combatAmmunitionSection" hidden><label for="combatAmmunition">Munición</label><select id="combatAmmunition" class="dark-select"></select></div>
                             <div class="attack-section"><label for="combatAttackSkill">Habilidad</label><select id="combatAttackSkill" class="dark-select"></select></div>
                             <div class="attack-section"><label>Tirada de ataque</label><div id="combatAttackRoll"></div></div>
                             <details class="combat-technique">
@@ -1134,7 +1268,7 @@ const CharacterController = {
                     </div>
                     <p id="combatResolutionDetail">Completa las tiradas de ataque y defensa, o marca que no hay defensa.</p>
                     <section class="damage-controls">
-                        <h4 style="margin:0 0 10px">Daño y localización</h4>
+                        
                         <div class="damage-row">
                             <div><label for="combatDamageType">Daño del arma</label><select id="combatDamageType" class="dark-select"></select></div>
                             <div><label for="combatDamage">Cantidad</label><input type="number" id="combatDamage" class="dark-input" min="0" value="0"></div>
@@ -1176,6 +1310,21 @@ const CharacterController = {
         modal.querySelector('#swapCombatRoles').textContent = `↔ Contraatacar`;
     },
 
+    getCombatDistance(combat) {
+        const getPosition = element => {
+            const image = element?.querySelector('image');
+            const x = image?.getAttribute('data-x');
+            const y = image?.getAttribute('data-y');
+            if (x === null || y === null || x === undefined || y === undefined) return null;
+            const position = { x: Number(x), y: Number(y) };
+            return Number.isFinite(position.x) && Number.isFinite(position.y) ? position : null;
+        };
+        const attacker = getPosition(combat?.attackerElement);
+        const target = getPosition(combat?.targetElement);
+        if (!attacker || !target) return null;
+        return Math.hypot(attacker.x - target.x, attacker.y - target.y) * CONFIG.distanceScaleFactor;
+    },
+
     getCombatResultGrade(attackGrade, defenseGrade) {
         if (attackGrade === null || defenseGrade === null) return null;
         return Math.max(
@@ -1190,6 +1339,9 @@ const CharacterController = {
         }
         const noDefenseSkill = modal.querySelector('#combatNoDefense').checked || !modal.querySelector('#combatDefenseSkill').value;
         const defenseGrade = noDefenseSkill ? TipoTirada.FALLO : combat.results.defense;
+        const attackSkill = combat.attackSkill;
+        const rangedAttack = attackSkill instanceof HabilidadDistancia || attackSkill?.clase === 'HabilidadDistancia';
+        const rangedDefenseAdjustment = !noDefenseSkill && rangedAttack ? -2 : 0;
         const attackTechniqueSucceeded = modal.querySelector('#combatTechnique').value
             && combat.results.technique !== null && combat.results.technique >= TipoTirada.EXITO;
         const defenseTechniqueSucceeded = modal.querySelector('#combatDefenseTechnique').value
@@ -1204,12 +1356,15 @@ const CharacterController = {
             + (modal.querySelector('#combatDefenseTechniqueTarget').value === 'attack' ? defenseTechniqueAdjustment : 0);
         const defenseAdjustment = (modal.querySelector('#combatTechniqueTarget').value === 'defense' ? attackTechniqueAdjustment : 0)
             + (modal.querySelector('#combatDefenseTechniqueTarget').value === 'defense' ? defenseTechniqueAdjustment : 0);
-        const clampGrade = grade => Math.max(TipoTirada.PIFIA, Math.min(TipoTirada.SUPERCRITICO, grade));
+        const clampGrade = (grade, minimum = TipoTirada.PIFIA) => Math.max(minimum, Math.min(TipoTirada.SUPERCRITICO, grade));
         return {
             attackGrade: combat.results.attack,
             defenseGrade,
             effectiveAttack: clampGrade(combat.results.attack + attackAdjustment),
-            effectiveDefense: defenseGrade === null ? null : clampGrade(defenseGrade + defenseAdjustment)
+            effectiveDefense: defenseGrade === null ? null : clampGrade(
+                defenseGrade + defenseAdjustment + rangedDefenseAdjustment,
+                rangedAttack ? TipoTirada.FALLO : TipoTirada.PIFIA
+            )
         };
     },
 

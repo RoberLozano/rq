@@ -452,7 +452,8 @@ function arcos(inicio = 34, fin = 41, seguir = true, n = 'A', no = 'B', fue = 'C
     }
 
 
-
+    console.log(">>>>>>>>>>>ARCO");
+    
     console.log(obj);
     // obj = new Arma(nombre, peso, 0, daños)
     pe.inventario.add(obj);

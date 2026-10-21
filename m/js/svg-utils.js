@@ -49,6 +49,46 @@ const SVGUtils = {
         const transformedCenter = transformedPoint.matrixTransform(matrix);
         return { x: transformedCenter.x, y: transformedCenter.y };
     },
+
+    getEntityPoint(entity) {
+        if (!entity) return null;
+        if (typeof entity === 'string') return this.findCoordinates(entity);
+
+        const candidates = [entity, entity.position, entity.coordinates, entity.coords];
+        for (const candidate of candidates) {
+            if (!candidate) continue;
+            const x = candidate.getAttribute?.('data-x') ?? candidate.x ?? candidate.getAttribute?.('x');
+            const y = candidate.getAttribute?.('data-y') ?? candidate.y ?? candidate.getAttribute?.('y');
+            if (x === null || x === undefined || y === null || y === undefined) continue;
+            const point = { x: Number(x), y: Number(y) };
+            if (Number.isFinite(point.x) && Number.isFinite(point.y)) return point;
+        }
+
+        const positionedElement = entity.querySelector?.('[data-x][data-y]');
+        if (positionedElement) {
+            const point = {
+                x: Number(positionedElement.getAttribute('data-x')),
+                y: Number(positionedElement.getAttribute('data-y'))
+            };
+            if (Number.isFinite(point.x) && Number.isFinite(point.y)) return point;
+        }
+
+        if (typeof entity.getBBox === 'function' && typeof entity.getCTM === 'function') {
+            try {
+                return this.getElementCenter(entity);
+            } catch (error) {
+                return null;
+            }
+        }
+        return null;
+    },
+
+    distancia(entityA, entityB) {
+        const pointA = this.getEntityPoint(entityA);
+        const pointB = this.getEntityPoint(entityB);
+        if (!pointA || !pointB) return null;
+        return Math.hypot(pointA.x - pointB.x, pointA.y - pointB.y) * (CONFIG.distanceScaleFactor ?? 1);
+    },
     
     /**
      * Find coordinates of a named element in the SVG

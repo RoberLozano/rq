@@ -715,8 +715,10 @@ class Arma extends Objeto {
  */
 class ArmaDistancia extends Arma {
   constructor(nombre, peso, valor, daño, alcance) {
-    super(nombre, peso, valor, daño);
+    super(nombre, peso, null, valor, daño);
     this.alcance = alcance;
+    // this.daños=[daño];
+    // console.log(this.daño);
   }
 
   /**
