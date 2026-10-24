@@ -84,7 +84,11 @@ the browser console.
   calls `ZXing._resize`, `ZXing._decode_any`, `ZXing.HEAPU8` and `Runtime.addFunction`.
 - Tesseract.js loads on demand from jsDelivr (`@7`, ~10 MB the first time, browser-cached).
   OCR only works because `prepararLienzo()` upscales, converts to grayscale and stretches
-  contrast; removing that step makes the printed numbers unreadable.
+  contrast; removing that step makes the printed numbers unreadable. Both input modes use the
+  live camera: `iniciarCamara()`/Quagga for the barcode and `iniciarCamaraOcr()` for the printed
+  number, which draws the current frame to a canvas on «Hacer foto» (no file picker). Starting
+  one stops the other, and `detenerCamaraOcr()` must not clear `#camara` while Quagga is
+  scanning.
 - Google Books rate-limits unkeyed IPs (429 is common). `consultarOpenLibrary()` is the
   fallback — keep it. Open Library returns author names in `author` (singular), not `authors`,
   formatted as `"Apellido, Nombre, fechas"`; `limpiarNombreAutor()` fixes that.

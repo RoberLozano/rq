@@ -20,6 +20,8 @@ var db = null;
 var firebaseListo = null;
 var ocrWorker = null;
 var escaneando = false;
+var camaraOcr = null;
+var ocrOcupado = false;
 var ultimoLibro = null;
 var autoresCache = null;
 var metaInicial = null;
@@ -971,6 +973,7 @@ function iniciarCamara() {
   }
   if (escaneando) return;
 
+  detenerCamaraOcr();
   estado('Iniciando cámara…');
   $('camara').hidden = false;
 
@@ -1007,8 +1010,99 @@ function detenerCamara() {
   $('camara').hidden = true;
 }
 
+/**
+ * Cámara para fotografiar el número impreso (OCR): vista previa y botón para
+ * capturar al momento, sin pasar por el selector de archivos.
+ */
+async function iniciarCamaraOcr() {
+  if (ocrOcupado) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    estado('La cámara necesita HTTPS o localhost (no funciona con file://).', 'error');
+    return;
+  }
+
+  detenerCamara();
+  estado('Iniciando cámara…');
+  $('btn-ocr-camara').disabled = true;
+
+  try {
+    camaraOcr = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    });
+
+    var video = document.createElement('video');
+    video.setAttribute('playsinline', '');
+    video.muted = true;
+    video.autoplay = true;
+    video.srcObject = camaraOcr;
+
+    $('camara').innerHTML = '';
+    $('camara').appendChild(video);
+    $('camara').hidden = false;
+
+    await video.play();
+    $('acciones-foto').hidden = false;
+    estado('Encuadra el número impreso y pulsa «Hacer foto».');
+  } catch (e) {
+    detenerCamaraOcr();
+    estado('No se pudo abrir la cámara: ' + (e.message || e), 'error');
+  }
+}
+
+function detenerCamaraOcr() {
+  if (camaraOcr) {
+    camaraOcr.getTracks().forEach(function (pista) { pista.stop(); });
+    camaraOcr = null;
+  }
+  $('acciones-foto').hidden = true;
+  $('btn-ocr-camara').disabled = false;
+  // No tocar el vídeo de Quagga si el escáner de códigos está en marcha.
+  if (!escaneando) {
+    $('camara').innerHTML = '';
+    $('camara').hidden = true;
+  }
+}
+
+async function hacerFotoOcr() {
+  var video = $('camara').querySelector('video');
+  if (!camaraOcr || !video) return;
+
+  var ancho = video.videoWidth || 1280;
+  var alto = video.videoHeight || 720;
+  var lienzo = document.createElement('canvas');
+  lienzo.width = ancho;
+  lienzo.height = alto;
+  lienzo.getContext('2d').drawImage(video, 0, 0, ancho, alto);
+
+  var archivo = await new Promise(function (resolver) {
+    lienzo.toBlob(function (blob) {
+      resolver(blob ? new File([blob], 'numero.jpg', { type: 'image/jpeg' }) : null);
+    }, 'image/jpeg', 0.95);
+  });
+
+  ocrOcupado = true;
+  $('btn-foto').disabled = true;
+  detenerCamaraOcr();
+  $('btn-ocr-camara').disabled = true;
+  estado('Procesando la foto…');
+
+  try {
+    if (!archivo) {
+      estado('No se pudo capturar la foto.', 'error');
+      return;
+    }
+    await textoDesdeArchivo(archivo);
+  } finally {
+    ocrOcupado = false;
+    $('btn-foto').disabled = false;
+    $('btn-ocr-camara').disabled = false;
+  }
+}
+
 function codigoDesdeArchivo(archivo) {
   detenerCamara();
+  detenerCamaraOcr();
   estado('Leyendo el código de barras…');
   var url = URL.createObjectURL(archivo);
   Quagga.decodeSingle({
@@ -1139,18 +1233,18 @@ $('isbn').addEventListener('keydown', function (e) {
 
 $('btn-camara').addEventListener('click', iniciarCamara);
 $('btn-detener').addEventListener('click', detenerCamara);
+$('btn-ocr-camara').addEventListener('click', iniciarCamaraOcr);
+$('btn-foto').addEventListener('click', hacerFotoOcr);
+$('btn-cancelar-foto').addEventListener('click', function () {
+  detenerCamaraOcr();
+  estado('');
+});
 $('btn-guardar').addEventListener('click', guardar);
 
 $('archivo-codigo').addEventListener('change', function (e) {
   var archivo = e.target.files[0];
   e.target.value = '';
   if (archivo) codigoDesdeArchivo(archivo);
-});
-
-$('archivo-ocr').addEventListener('change', function (e) {
-  var archivo = e.target.files[0];
-  e.target.value = '';
-  if (archivo) textoDesdeArchivo(archivo);
 });
 
 $('chk-lectura').addEventListener('change', function (e) {

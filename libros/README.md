@@ -3,7 +3,8 @@
 Página estática (sin build, sin framework) para añadir libros a la biblioteca:
 
 - **Código de barras** con la cámara o desde una foto (QuaggaJS, EAN-13).
-- **OCR del número impreso** desde una foto (Tesseract.js, se descarga solo al usarlo).
+- **OCR del número impreso**: la página abre la cámara, encuadras el número y pulsas «Hacer
+  foto»; no hay que elegir un archivo (Tesseract.js, se descarga solo al usarlo).
 - **Input manual** como último recurso.
 
 Valida el dígito verificador, busca los datos en Google Books (con Open Library como

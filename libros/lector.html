@@ -171,7 +171,7 @@
 <body>
   <main>
     <h1>Añadir libro</h1>
-    <p>Escanea el código de barras, sube una foto del número o escribe el ISBN.
+    <p>Escanea el código de barras, haz una foto del número o escribe el ISBN.
       <a href="consulta.html">Ver la biblioteca</a></p>
 
     <div class="buscador">
@@ -184,10 +184,14 @@
       <button id="btn-camara" class="sec">Escanear con cámara</button>
       <button id="btn-detener" class="sec" hidden>Detener cámara</button>
       <label class="archivo">Foto del código<input id="archivo-codigo" type="file" accept="image/*"></label>
-      <label class="archivo">Foto del número (OCR)<input id="archivo-ocr" type="file" accept="image/*"></label>
+      <button id="btn-ocr-camara" class="sec">Hacer foto del número (OCR)</button>
     </div>
 
     <div id="camara" hidden></div>
+    <div class="fuentes" id="acciones-foto" hidden>
+      <button id="btn-foto">Hacer foto</button>
+      <button id="btn-cancelar-foto" class="sec">Cancelar</button>
+    </div>
     <p id="estado" role="status" aria-live="polite"></p>
 
     <section id="resultado" hidden>
