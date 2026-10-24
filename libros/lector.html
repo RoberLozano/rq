@@ -145,6 +145,15 @@
       pointer-events: none;
     }
 
+    /* Capa transparente que recibe el toque: el <video> no siempre lo propaga. */
+    #disparo-ocr {
+      position: absolute;
+      inset: 0;
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+
     #estado { min-height: 1.5em; margin: .8rem 0; }
     #estado.error { color: var(--error); }
     #estado.ok { color: var(--ok); }

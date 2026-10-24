@@ -976,8 +976,12 @@ function crearGuiaOcr() {
   mascara.id = 'mascara-ocr';
   var guia = document.createElement('div');
   guia.id = 'guia-ocr';
+  // Capa de toque: encima del vídeo, que en iOS se traga los clics.
+  var disparo = document.createElement('div');
+  disparo.id = 'disparo-ocr';
   capas.appendChild(mascara);
   capas.appendChild(guia);
+  capas.appendChild(disparo);
   return capas;
 }
 
@@ -1117,45 +1121,58 @@ async function hacerFotoOcr() {
   var video = $('camara').querySelector('video');
   if (!camaraOcr || !video) return;
 
+  // El pestillo se libera siempre en el finally: un fallo al capturar no puede
+  // dejar la cámara abierta y sorda a más toques.
   ocrOcupado = true;
   $('btn-foto').disabled = true;
-
-  // Solo el recuadro: fuera quedan el resto de la contraportada y sus textos.
-  var ancho = video.videoWidth || 1280;
-  var alto = video.videoHeight || 720;
-  var origenX = Math.round(ancho * RECORTE_OCR.x);
-  var origenY = Math.round(alto * RECORTE_OCR.y);
-  var recorteAncho = Math.round(ancho * RECORTE_OCR.ancho);
-  var recorteAlto = Math.round(alto * RECORTE_OCR.alto);
-
-  var lienzo = document.createElement('canvas');
-  lienzo.width = recorteAncho;
-  lienzo.height = recorteAlto;
-  lienzo.getContext('2d').drawImage(video,
-    origenX, origenY, recorteAncho, recorteAlto,
-    0, 0, recorteAncho, recorteAlto);
-
-  var archivo = await new Promise(function (resolver) {
-    lienzo.toBlob(function (blob) {
-      resolver(blob ? new File([blob], 'numero.jpg', { type: 'image/jpeg' }) : null);
-    }, 'image/jpeg', 0.95);
-  });
-
-  detenerCamaraOcr();
   $('btn-ocr-camara').disabled = true;
-  estado('Procesando la foto…');
 
   try {
-    if (!archivo) {
-      estado('No se pudo capturar la foto.', 'error');
-      return;
-    }
+    var archivo = await fotoDelVideo(video);
+    detenerCamaraOcr();
+    $('btn-ocr-camara').disabled = true;
+    estado('Procesando la foto…');
     await textoDesdeArchivo(archivo);
+  } catch (e) {
+    detenerCamaraOcr();
+    estado('No se pudo hacer la foto: ' + (e.message || e), 'error');
   } finally {
     ocrOcupado = false;
     $('btn-foto').disabled = false;
     $('btn-ocr-camara').disabled = false;
   }
+}
+
+/** Recorta el recuadro del fotograma actual y lo devuelve como imagen. */
+function fotoDelVideo(video) {
+  return new Promise(function (resolver, rechazar) {
+    if (!video.videoWidth || !video.videoHeight) {
+      rechazar(new Error('la cámara aún no está lista, espera un segundo'));
+      return;
+    }
+
+    var ancho = video.videoWidth;
+    var alto = video.videoHeight;
+    var origenX = Math.round(ancho * RECORTE_OCR.x);
+    var origenY = Math.round(alto * RECORTE_OCR.y);
+    var recorteAncho = Math.round(ancho * RECORTE_OCR.ancho);
+    var recorteAlto = Math.round(alto * RECORTE_OCR.alto);
+
+    var lienzo = document.createElement('canvas');
+    lienzo.width = recorteAncho;
+    lienzo.height = recorteAlto;
+    lienzo.getContext('2d').drawImage(video,
+      origenX, origenY, recorteAncho, recorteAlto,
+      0, 0, recorteAncho, recorteAlto);
+
+    lienzo.toBlob(function (blob) {
+      if (!blob) {
+        rechazar(new Error('no se pudo codificar la imagen'));
+        return;
+      }
+      resolver(blob);
+    }, 'image/jpeg', 0.95);
+  });
 }
 
 function codigoDesdeArchivo(archivo) {
