@@ -1,0 +1,15 @@
+{
+  "rules": {
+    ".read": "auth != null",
+    ".write": "auth != null",
+    "libros": {
+      ".indexOn": ["isbn", "autor", "titulo"]
+    },
+    "autores": {
+      ".indexOn": ["autor"]
+    },
+    "lecturas": {
+      ".indexOn": ["libro", "fechaInicio"]
+    }
+  }
+}

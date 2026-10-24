@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title> Ler Barcode </title>
+</head>
+
+<body>
+
+    <div id="resultado"></div>
+    <input type="number" id="isbn" name="isbn" onchange="isbn(this.value)"><br>
+    <div id="camera"></div>
+
+    <script src="quagga.min.js"></script>
+    <!-- The core Firebase JS SDK is always required and must be listed first -->
+    <script src="https://www.gstatic.com/firebasejs/7.15.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/7.15.1/firebase-database.js"></script>
+
+    <!-- TODO: Add SDKs for Firebase products that you want to use
+     https://firebase.google.com/docs/web/setup#available-libraries -->
+
+    <script>
+        // Your web app's Firebase configuration
+        var firebaseConfig = {
+            apiKey: "AIzaSyDUMk_WnDHHg7FRT1zMEJnp1kykliprOCU",
+            authDomain: "fireui-777.firebaseapp.com",
+            databaseURL: "https://fireui-777.firebaseio.com",
+            projectId: "fireui-777",
+            storageBucket: "fireui-777.appspot.com",
+            messagingSenderId: "987970014632",
+            appId: "1:987970014632:web:8f1eef85cfe38570ab619d"
+        };
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        var database = firebase.database();
+    </script>
+
+
+    <script>
+
+        function isbn(n) {
+            var number = (n.match(/\d+/g).map(Number)).join('');
+            console.log(number);
+            console.log(number.length);
+
+
+            buscar(number);
+            document.getElementById("isbn").value = number;
+
+        }
+
+
+        navigator.clipboard.readText().then(clipText =>
+            isbn(clipText));
+
+
+        console.log("version 6");
+
+        var resultados = new Map();
+        var lastCode;
+        var libro;
+        // resultados[Symbol.iterator] = function* () {
+        //     yield* [...this.entries()].sort((a, b) => a[1] - b[1]);
+        // }
+
+        Quagga.init({
+            inputStream: {
+                name: "Live",
+                type: "LiveStream",
+                target: document.querySelector('#camera')    // Or '#yourElement' (optional)
+            },
+            decoder: {
+                readers: [
+                    'ean_reader'
+                ],
+                debug: {
+                    drawBoundingBox: false,
+                    showFrequency: false,
+                    drawScanline: true,
+                    showPattern: false
+                },
+                multiple: false
+            }
+        }, function (err) {
+            if (err) {
+                console.log(err);
+                return
+            }
+            console.log("Initialization finished. Ready to start");
+            Quagga.start();
+        });
+
+        Quagga.onDetected(function (data) {
+            var code = data.codeResult.code + "";
+            if (code.length == 13) {
+                if (code === lastCode) return; //si es el mismo nada
+
+                let cs = code.slice(-1);
+                let ean = code.slice(0, 12);
+                if (cs == (ean13_checksum(ean) + "")) {
+                    lastCode = code;
+                    buscar(code);
+                    // document.querySelector('#resultado').innerText = lastCode
+
+
+                    // if (resultados.get(code) == undefined) {
+                    //     resultados.set(code, 0)
+                    // }
+                    // else {
+                    //     resultados.set(code, +resultados.get(code) + 1)
+                    // }
+
+                    // var mapSort = new Map([...resultados.entries()].sort((a, b) => b[1] - a[1]));
+
+                    // document.querySelector('#resultado').innerText = `${code} (${data.codeResult.startInfo.error.toFixed(3)}) : ${resultados.get(code)}  `
+                    // // document.querySelector('#resultado').innerText += mapSort;
+                    // console.log(mapSort);
+
+
+                }
+                else {
+                    console.log(code);
+                }
+            }
+
+
+        });
+
+
+        /**
+         * @param {string} isbn El código ISBN
+         */
+        function buscar(isbn) {
+            var bookSearchString = "https://www.googleapis.com/books/v1/volumes?" +
+                "q=isbn:" + isbn
+
+            var xmlhttp = new XMLHttpRequest();
+            xmlhttp.onreadystatechange = function () {
+                if (this.readyState == 4 && this.status == 200) {
+                    var json = JSON.parse(this.responseText);
+                    // console.log(json.items[0]);
+                    libro = json.items[0];
+                    console.log(libro.volumeInfo);
+
+                    if (libro.volumeInfo.title &&
+                        libro.volumeInfo.authors) {
+                        document.querySelector('#resultado').innerText =
+                            `${libro.volumeInfo.title}
+                        ${libro.volumeInfo.authors}
+                        ${libro.volumeInfo.pageCount} páginas
+                        ${libro.volumeInfo.publishedDate}`;
+
+                        var ref = firebase.database().ref("/libros/").child(isbn)
+                        ref.set(libro)
+                        console.log(libro);
+
+                        var refA = firebase.database().ref("/libros/autores/"+libro.volumeInfo.authors[0]+"/").child(isbn)
+                        refA.set(libro.volumeInfo)
+                        console.log(libro.volumeInfo);
+
+
+                    }
+
+
+
+                }
+            };
+
+            xmlhttp.open("GET", bookSearchString, true);
+            // console.log("https://world.openfoodfacts.org/api/v0/product" + ean + ".json");
+            xmlhttp.send();
+
+        }
+
+        // Cálculo del dígito de control EAN
+        function ean13_checksum(message) {
+            var checksum = 0;
+            message = message.split('').reverse();
+            for (var pos in message) {
+                checksum += message[pos] * (3 - 2 * (pos % 2));
+            }
+            return ((10 - (checksum % 10)) % 10);
+        }
+        // Valor de prueba (sin dígito de control)
+        // var ean = '123456789041';
+        // console.log(ean13_checksum(ean));
+
+    </script>
+
+</body>
+
+</html>

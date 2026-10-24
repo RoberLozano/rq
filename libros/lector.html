@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Añadir libro por ISBN</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --borde: #dcdce0;
+      --acento: #26262b;
+      --sobre-acento: #ffffff;
+      --error: #b3261e;
+      --ok: #146c2e;
+      --fondo: #ffffff;
+      --texto: #17171a;
+      --tenue: #5f5f66;
+    }
+
+    /* Paleta casi negra, gris y blanco: sin azul. */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --borde: #242428;
+        --acento: #ededf0;
+        --sobre-acento: #08080a;
+        --error: #ff9d97;
+        --ok: #8fd7a0;
+        --fondo: #050506;
+        --texto: #f0f0f2;
+        --tenue: #96969e;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    /* Sin esto, #campos-lectura { display:flex } le gana al atributo hidden. */
+    [hidden] { display: none !important; }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      line-height: 1.45;
+      background: var(--fondo);
+      color: var(--texto);
+    }
+
+    main { max-width: 640px; margin: 0 auto; padding: 1rem; }
+
+    h1 { font-size: 1.4rem; margin: 0 0 .3rem; }
+    h2 { font-size: 1.2rem; margin: 0 0 .2rem; }
+    p { margin: .4rem 0; }
+
+    a {
+      color: inherit;
+      text-decoration: underline;
+      text-decoration-color: var(--tenue);
+      text-underline-offset: 2px;
+    }
+
+    a:hover { text-decoration-color: currentColor; }
+
+    .buscador { display: flex; gap: .5rem; margin-top: .8rem; }
+
+    input[type="text"], input[type="date"], select {
+      padding: .6rem;
+      font-size: 1rem;
+      border: 1px solid var(--borde);
+      border-radius: .4rem;
+      background: var(--fondo);
+      color: var(--texto);
+      min-width: 0;
+    }
+
+    /* La lista desplegable la pinta el sistema: sin colores propios se queda
+       en blanco con el texto del tema oscuro (o al revés). */
+    select option {
+      background: var(--fondo);
+      color: var(--texto);
+    }
+
+    #isbn { flex: 1; }
+
+    ::placeholder { color: var(--tenue); }
+
+    button {
+      padding: .6rem .9rem;
+      font-size: 1rem;
+      border-radius: .4rem;
+      border: 1px solid var(--acento);
+      background: var(--acento);
+      color: var(--sobre-acento);
+      cursor: pointer;
+    }
+
+    button.sec { background: transparent; color: inherit; border-color: var(--borde); }
+    button:disabled { opacity: .5; cursor: default; }
+
+    .fuentes { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .8rem; }
+
+    label.archivo {
+      display: inline-block;
+      padding: .6rem .9rem;
+      border: 1px dashed var(--borde);
+      border-radius: .4rem;
+      cursor: pointer;
+    }
+
+    label.archivo input { display: none; }
+
+    #camara {
+      margin-top: .8rem;
+      overflow: hidden;
+      border-radius: .5rem;
+      background: #000;
+    }
+
+    #camara video, #camara canvas { width: 100%; height: auto; display: block; }
+
+    #estado { min-height: 1.5em; margin: .8rem 0; }
+    #estado.error { color: var(--error); }
+    #estado.ok { color: var(--ok); }
+
+    #resultado {
+      border: 1px solid var(--borde);
+      border-radius: .6rem;
+      padding: 1rem;
+    }
+
+    #portada {
+      max-height: 150px;
+      float: right;
+      margin: 0 0 .5rem .8rem;
+      border-radius: .3rem;
+    }
+
+    dl {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: .2rem .8rem;
+      margin: .8rem 0 0;
+    }
+
+    dt { font-weight: 600; }
+    dd { margin: 0; }
+
+    /* La sinopsis se muestra completa: pre-line respeta los saltos de párrafo. */
+    #sinopsis {
+      clear: both;
+      margin: .8rem 0 0;
+      white-space: pre-line;
+    }
+
+    fieldset {
+      border: 1px solid var(--borde);
+      border-radius: .6rem;
+      padding: .8rem;
+      margin: 1rem 0;
+    }
+
+    #campos-lectura { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: .6rem; }
+    #campos-lectura label { display: flex; flex-direction: column; font-size: .9rem; gap: .2rem; }
+
+    @media (max-width: 420px) {
+      .buscador { flex-direction: column; }
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <h1>Añadir libro</h1>
+    <p>Escanea el código de barras, sube una foto del número o escribe el ISBN.
+      <a href="consulta.html">Ver la biblioteca</a></p>
+
+    <div class="buscador">
+      <input id="isbn" type="text" inputmode="numeric" autocomplete="off"
+        placeholder="ISBN (10 o 13 dígitos)" aria-label="ISBN">
+      <button id="btn-buscar">Buscar</button>
+    </div>
+
+    <div class="fuentes">
+      <button id="btn-camara" class="sec">Escanear con cámara</button>
+      <button id="btn-detener" class="sec" hidden>Detener cámara</button>
+      <label class="archivo">Foto del código<input id="archivo-codigo" type="file" accept="image/*"></label>
+      <label class="archivo">Foto del número (OCR)<input id="archivo-ocr" type="file" accept="image/*"></label>
+    </div>
+
+    <div id="camara" hidden></div>
+    <p id="estado" role="status" aria-live="polite"></p>
+
+    <section id="resultado" hidden>
+      <img id="portada" alt="" hidden>
+      <h2 id="titulo"></h2>
+      <p id="autores"></p>
+      <dl id="datos"></dl>
+      <p id="sinopsis" hidden></p>
+
+      <fieldset>
+        <label><input type="checkbox" id="chk-lectura"> Registrar lectura de este libro</label>
+        <div id="campos-lectura" hidden>
+          <label>Inicio <input type="date" id="fecha-inicio"></label>
+          <label>Fin <input type="date" id="fecha-fin"></label>
+          <label>Formato
+            <select id="formato">
+              <option value="libro">libro</option>
+              <option value="e-book">e-book</option>
+              <option value="impreso">impreso</option>
+              <option value="otro">otro</option>
+            </select>
+          </label>
+        </div>
+      </fieldset>
+
+      <button id="btn-guardar">Guardar en Firebase</button>
+    </section>
+  </main>
+
+  <script src="quagga.min.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="lector.js"></script>
+</body>
+
+</html>
