@@ -834,12 +834,12 @@ const CharacterController = {
             );
         combat.attackerWeapons = attackerWeapons;
         const availableAmmunition = attackerPersonaje?.inventario?.darClaseRecursiva?.(Municion) || [];
-        const isDistanceSkill = skill => skill instanceof HabilidadDistancia || skill.clase === 'HabilidadDistancia';
+        const isDistanceSkill = skill => skill instanceof HabilidadDistancia || skill?.clase === 'HabilidadDistancia';
         const attackerSkills = this.getHabilidadesOfensivasPersonaje(attackerPersonaje)
-            .filter(skill => !(skill instanceof Tecnica) && skill.clase !== 'Tecnica')
+            .filter(skill => !(skill instanceof Tecnica) && skill?.clase !== 'Tecnica')
             .filter(skill => combatDistance === null || isDistanceSkill(skill) === rangedCombat);
         const techniques = this.getHabilidadesOfensivasPersonaje(attackerPersonaje)
-            .filter(skill => skill instanceof Tecnica || skill.clase === 'Tecnica');
+            .filter(skill => skill instanceof Tecnica || skill?.clase === 'Tecnica');
 
         weaponSelect.innerHTML = attackerWeapons.length
             ? attackerWeapons.map((weapon, index) => `<option value="${index}"${isWithinStraightRange(weapon) ? ' class="weapon-in-straight-range"' : ''}>${weapon.nombre}</option>`).join('')
@@ -1169,10 +1169,11 @@ const CharacterController = {
                 body.combat-modal-open { touch-action:auto; }
                 .attack-modal { box-sizing:border-box; background:#1a1a1a; color:#e0e0e0; border:1px solid #505050; border-radius:6px; width:min(820px, calc(100vw - 16px)); max-height:calc(100dvh - 16px); display:flex; flex-direction:column; box-shadow:0 10px 36px rgba(0,0,0,.6); }
                 .attack-modal-header, .attack-modal-footer { display:flex; flex:0 0 auto; align-items:center; justify-content:space-between; gap:8px; padding:7px 10px; background:#252525; border-bottom:1px solid #444; }
-                .attack-modal-header h3 { margin:0; font-size:16px; }
+                .attack-modal-header .combat-roles { flex:1; min-width:0; display:flex; align-items:center; justify-content:center; gap:10px; margin:0; padding:0; font-size:14px; white-space:nowrap; }
+                .attack-modal-header .combat-roles a { max-width:clamp(80px,26vw,220px); overflow:hidden; text-overflow:ellipsis; }
+                #swapCombatRoles { flex:0 0 32px; width:32px; min-height:32px; padding:4px; font-size:16px; }
                 #attackModal { z-index:11000; align-items:center; justify-content:center; box-sizing:border-box; padding:8px; overflow-y:auto; touch-action:pan-y; }
                 .attack-modal-body { min-height:0; overflow-y:auto; overscroll-behavior:contain; touch-action:pan-y; padding:8px; }
-                .combat-roles { display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap; margin-bottom:7px; padding:6px; background:#222; border:1px solid #3d3d3d; border-radius:4px; font-size:13px; }
                 .combat-roles a { color:#f1f1f1; font-weight:600; text-decoration:none; }
                 .combat-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; }
                 .combat-section { min-width:0; padding:8px; background:#222; border:1px solid #3d3d3d; border-radius:4px; }
@@ -1210,22 +1211,23 @@ const CharacterController = {
                     .combat-grid { grid-template-columns:minmax(0,1fr); gap:5px; }
                     .combat-section { padding:7px; }
                     .combat-result { grid-template-columns:repeat(2,minmax(0,1fr)); }
-                    .combat-roles { gap:5px; }
-                    .combat-roles .combat-button { min-height:34px; }
+                    .attack-modal-header { gap:5px; padding:6px; }
+                    .attack-modal-header h3 { max-width:92px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
+                    .attack-modal-header .combat-roles { gap:5px; font-size:13px; }
+                    .attack-modal-header .combat-roles a { max-width:clamp(64px,24vw,110px); }
+                    #swapCombatRoles { flex-basis:28px; width:28px; min-height:28px; padding:2px; }
                 }
             </style>
             <div class="attack-modal">
                 <div class="attack-modal-header">
-                    <h3>Resolución de combate</h3>
+                    <div class="combat-roles">
+                        <a id="combatAttackerName" target="_blank"></a> vs
+                        <a id="combatTargetName" target="_blank"></a>
+                        <button type="button" class="combat-icon-button" id="swapCombatRoles" aria-label="Contraatacar" title="Intercambiar atacante y defensor">↔</button>
+                    </div>
                     <button type="button" class="combat-icon-button" id="closeAttackModal" aria-label="Cerrar" title="Cerrar">×</button>
                 </div>
                 <div class="attack-modal-body">
-                    <div class="combat-roles">
-                        <a id="combatAttackerName" target="_blank"></a>
-                        <span>ataca a</span>
-                        <a id="combatTargetName" target="_blank"></a>
-                        <button type="button" class="combat-button" id="swapCombatRoles" title="Intercambiar atacante y defensor">↔ Contraatacar</button>
-                    </div>
                     <div class="combat-grid">
                         <section class="combat-section">
                             <h4>⚔️ Ataque <span id="combatAttackType" class="combat-attack-type"></span></h4>
@@ -1307,7 +1309,7 @@ const CharacterController = {
         if (!modal || !combat) return;
         modal.dataset.attacker = combat.attackerElement?.id || '';
         modal.dataset.target = combat.targetElement?.id || '';
-        modal.querySelector('#swapCombatRoles').textContent = `↔ Contraatacar`;
+        modal.querySelector('#swapCombatRoles').textContent = '↔';
     },
 
     getCombatDistance(combat) {
