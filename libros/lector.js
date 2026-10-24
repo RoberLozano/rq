@@ -966,6 +966,49 @@ async function guardar() {
 
 /* ---------- cámara y fotos ---------- */
 
+// Zona del fotograma que se manda al OCR, en proporción al vídeo. La misma
+// proporción dibuja el recuadro en la vista previa.
+var RECORTE_OCR = { x: 0.1, y: 0.38, ancho: 0.8, alto: 0.24 };
+
+function crearGuiaOcr() {
+  var capas = document.createDocumentFragment();
+  var mascara = document.createElement('div');
+  mascara.id = 'mascara-ocr';
+  var guia = document.createElement('div');
+  guia.id = 'guia-ocr';
+  capas.appendChild(mascara);
+  capas.appendChild(guia);
+  return capas;
+}
+
+/** El vídeo puede ir centrado y con otro tamaño que su caja: se mide y se encaja. */
+function colocarGuiaOcr() {
+  var video = $('camara').querySelector('video.video-ocr');
+  var guia = $('guia-ocr');
+  var mascara = $('mascara-ocr');
+  if (!video || !guia || !mascara) return;
+
+  var v = video.getBoundingClientRect();
+  var c = $('camara').getBoundingClientRect();
+  var izq = v.left - c.left + v.width * RECORTE_OCR.x;
+  var arriba = v.top - c.top + v.height * RECORTE_OCR.y;
+  var ancho = v.width * RECORTE_OCR.ancho;
+  var alto = v.height * RECORTE_OCR.alto;
+
+  guia.style.left = Math.round(izq) + 'px';
+  guia.style.top = Math.round(arriba) + 'px';
+  guia.style.width = Math.round(ancho) + 'px';
+  guia.style.height = Math.round(alto) + 'px';
+
+  // Los cuatro bordes de la máscara son las distancias hasta el recuadro.
+  mascara.style.borderWidth = [
+    Math.max(0, Math.round(arriba)),
+    Math.max(0, Math.round(c.width - izq - ancho)),
+    Math.max(0, Math.round(c.height - arriba - alto)),
+    Math.max(0, Math.round(izq))
+  ].join('px ') + 'px';
+}
+
 function iniciarCamara() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     estado('La cámara necesita HTTPS o localhost (no funciona con file://).', 'error');
@@ -1032,6 +1075,8 @@ async function iniciarCamaraOcr() {
     });
 
     var video = document.createElement('video');
+    video.className = 'video-ocr';
+    video.title = 'Toca para hacer la foto';
     video.setAttribute('playsinline', '');
     video.muted = true;
     video.autoplay = true;
@@ -1039,11 +1084,13 @@ async function iniciarCamaraOcr() {
 
     $('camara').innerHTML = '';
     $('camara').appendChild(video);
+    $('camara').appendChild(crearGuiaOcr());
     $('camara').hidden = false;
 
     await video.play();
+    colocarGuiaOcr();
     $('acciones-foto').hidden = false;
-    estado('Encuadra el número impreso y pulsa «Hacer foto».');
+    estado('Encuadra el número en el recuadro y toca la imagen para hacer la foto.');
   } catch (e) {
     detenerCamaraOcr();
     estado('No se pudo abrir la cámara: ' + (e.message || e), 'error');
@@ -1065,15 +1112,28 @@ function detenerCamaraOcr() {
 }
 
 async function hacerFotoOcr() {
+  if (ocrOcupado) return;
+
   var video = $('camara').querySelector('video');
   if (!camaraOcr || !video) return;
 
+  ocrOcupado = true;
+  $('btn-foto').disabled = true;
+
+  // Solo el recuadro: fuera quedan el resto de la contraportada y sus textos.
   var ancho = video.videoWidth || 1280;
   var alto = video.videoHeight || 720;
+  var origenX = Math.round(ancho * RECORTE_OCR.x);
+  var origenY = Math.round(alto * RECORTE_OCR.y);
+  var recorteAncho = Math.round(ancho * RECORTE_OCR.ancho);
+  var recorteAlto = Math.round(alto * RECORTE_OCR.alto);
+
   var lienzo = document.createElement('canvas');
-  lienzo.width = ancho;
-  lienzo.height = alto;
-  lienzo.getContext('2d').drawImage(video, 0, 0, ancho, alto);
+  lienzo.width = recorteAncho;
+  lienzo.height = recorteAlto;
+  lienzo.getContext('2d').drawImage(video,
+    origenX, origenY, recorteAncho, recorteAlto,
+    0, 0, recorteAncho, recorteAlto);
 
   var archivo = await new Promise(function (resolver) {
     lienzo.toBlob(function (blob) {
@@ -1081,8 +1141,6 @@ async function hacerFotoOcr() {
     }, 'image/jpeg', 0.95);
   });
 
-  ocrOcupado = true;
-  $('btn-foto').disabled = true;
   detenerCamaraOcr();
   $('btn-ocr-camara').disabled = true;
   estado('Procesando la foto…');
@@ -1197,20 +1255,24 @@ async function textoDesdeArchivo(archivo) {
     var lienzo = prepararLienzo(imagen);
     var worker = await obtenerOcr();
 
-    var resultado = await worker.recognize(lienzo);
-    var isbn = resolverIsbn(resultado.data.text);
+    // Bloque de texto, texto disperso y una sola línea: el recorte suele ser
+    // solo el número, así que la tercera pasada es la que mejor lo aísla.
+    var modos = ['6', '11', '7'];
+    var isbn = null;
+    var texto = '';
 
-    if (!isbn) {
-      // Segundo intento: texto disperso, útil cuando hay ruido alrededor.
-      await worker.setParameters({ tessedit_pageseg_mode: '11' });
-      resultado = await worker.recognize(lienzo);
-      isbn = resolverIsbn(resultado.data.text);
-      await worker.setParameters({ tessedit_pageseg_mode: '6' });
+    for (var i = 0; i < modos.length && !isbn; i++) {
+      await worker.setParameters({ tessedit_pageseg_mode: modos[i] });
+      var resultado = await worker.recognize(lienzo);
+      texto = resultado.data.text || '';
+      isbn = resolverIsbn(texto);
     }
+    await worker.setParameters({ tessedit_pageseg_mode: '6' });
 
     if (!isbn) {
-      var texto = (resultado.data.text || '').replace(/\s+/g, ' ').trim().slice(0, 80);
-      estado('No pude leer un ISBN válido. Texto detectado: "' + texto + '"', 'error');
+      var visto = texto.replace(/\s+/g, ' ').trim().slice(0, 80);
+      estado('No pude leer un ISBN válido. Acerca la cámara o mete el número entero en el ' +
+        'recuadro.' + (visto ? ' Texto detectado: "' + visto + '"' : ''), 'error');
       return;
     }
 
@@ -1235,6 +1297,13 @@ $('btn-camara').addEventListener('click', iniciarCamara);
 $('btn-detener').addEventListener('click', detenerCamara);
 $('btn-ocr-camara').addEventListener('click', iniciarCamaraOcr);
 $('btn-foto').addEventListener('click', hacerFotoOcr);
+
+// Tocar la vista previa también dispara la foto: con el móvil enfocando,
+// el botón de abajo queda incómodo.
+$('camara').addEventListener('click', function () {
+  if (camaraOcr) hacerFotoOcr();
+});
+
 $('btn-cancelar-foto').addEventListener('click', function () {
   detenerCamaraOcr();
   estado('');
@@ -1250,6 +1319,9 @@ $('archivo-codigo').addEventListener('change', function (e) {
 $('chk-lectura').addEventListener('change', function (e) {
   $('campos-lectura').hidden = !e.target.checked;
 });
+
+// Al girar el móvil el vídeo cambia de tamaño: el recuadro se recoloca.
+window.addEventListener('resize', colocarGuiaOcr);
 
 Quagga.onDetected(function (datos) {
   if (!escaneando) return;

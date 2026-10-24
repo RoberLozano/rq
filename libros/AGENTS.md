@@ -86,9 +86,11 @@ the browser console.
   OCR only works because `prepararLienzo()` upscales, converts to grayscale and stretches
   contrast; removing that step makes the printed numbers unreadable. Both input modes use the
   live camera: `iniciarCamara()`/Quagga for the barcode and `iniciarCamaraOcr()` for the printed
-  number, which draws the current frame to a canvas on «Hacer foto» (no file picker). Starting
-  one stops the other, and `detenerCamaraOcr()` must not clear `#camara` while Quagga is
-  scanning.
+  number. The OCR one crops the frame to `RECORTE_OCR` (the white rectangle you see), which is
+  drawn by `colocarGuiaOcr()` measured in pixels because the video can be centred and scaled by
+  `max-height`; tapping the preview or «Hacer foto» runs `hacerFotoOcr()` (no file picker).
+  Starting one mode stops the other, and `detenerCamaraOcr()` must not clear `#camara` while
+  Quagga is scanning.
 - Google Books rate-limits unkeyed IPs (429 is common). `consultarOpenLibrary()` is the
   fallback — keep it. Open Library returns author names in `author` (singular), not `authors`,
   formatted as `"Apellido, Nombre, fechas"`; `limpiarNombreAutor()` fixes that.

@@ -110,6 +110,7 @@
     label.archivo input { display: none; }
 
     #camara {
+      position: relative;
       margin-top: .8rem;
       overflow: hidden;
       border-radius: .5rem;
@@ -117,6 +118,32 @@
     }
 
     #camara video, #camara canvas { width: 100%; height: auto; display: block; }
+
+    /* En el OCR el vídeo se limita en alto para que los botones de la foto
+       sigan a la vista en el móvil; el recuadro se coloca en píxeles. */
+    #camara video.video-ocr {
+      width: auto;
+      max-width: 100%;
+      max-height: 60vh;
+      margin: 0 auto;
+      cursor: pointer;
+    }
+
+    /* Máscara: una caja del tamaño de la vista previa cuyos bordes oscurecen
+       todo menos el recuadro (el hueco central). */
+    #mascara-ocr {
+      position: absolute;
+      inset: 0;
+      border: 0 solid rgba(0, 0, 0, .55);
+      pointer-events: none;
+    }
+
+    #guia-ocr {
+      position: absolute;
+      border: 2px solid rgba(255, 255, 255, .9);
+      border-radius: .35rem;
+      pointer-events: none;
+    }
 
     #estado { min-height: 1.5em; margin: .8rem 0; }
     #estado.error { color: var(--error); }
