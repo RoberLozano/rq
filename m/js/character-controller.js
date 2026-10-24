@@ -961,7 +961,7 @@ const CharacterController = {
                 updateResolution();
                 return;
             }
-            if (weapon && (skill instanceof HabilidadMarcial || skill.clase === 'HabilidadMarcial' || skill.clase === 'Tecnica')) {
+            if (weapon && (skill instanceof HabilidadMarcial || skill?.clase === 'HabilidadMarcial' || skill.clase === 'Tecnica')) {
                 skill.arma = weapon;
             }
             const inputHab = new InputHabilidadModificable(skill, true);
