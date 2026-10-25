@@ -10,12 +10,13 @@ the browser console.
   OCR of the printed number via Tesseract.js, manual input), ISBN lookup in Google Books with
   an Open Library fallback, completion of the synopsis/year with the Spanish Wikipedia and
   Wikidata, then save to Realtime Database. All UI text is Spanish.
-- `consulta.html` + `consulta.js` — read-only library dashboard. Reads
-  `/libros`, `/autores` and `/lecturas`, derives times read from the readings rows (the `codlec`
-  does not encode re-reads) and recomputes every panel live from one shared filter state
-  (nota/páginas sliders, clickable bars for genre/language/sex/nationality/format/year,
-  sortable tables). Six tabs; every section is a native `<details>` and the filters start
-  collapsed on mobile. All UI text is Spanish.
+- `consulta.html` + `consulta.js` — library dashboard; writes only in two places: merging
+  duplicate authors (Revisar tab) and setting the finish date of a reading (En curso tab).
+  Reads `/libros`, `/autores` and `/lecturas`, derives times read from the readings rows (the
+  `codlec` does not encode re-reads) and recomputes every panel live from one shared filter
+  state (nota/páginas sliders, clickable bars for
+  genre/language/sex/nationality/format/year, sortable tables). Seven tabs; every section is a
+  native `<details>` and the filters start collapsed on mobile. All UI text is Spanish.
 - `index.html` — legacy demo, all inline: Quagga + Firebase project `fireui-777` + Google
   Books. Its `isbn()` throws when clipboard text has no digits. Don't extend it; work in
   `lector.*`.
@@ -74,6 +75,97 @@ the browser console.
   the *Quijote* edition listed Unamuno and Grossman (prologuist and translator). `mismoAutor()`
   compares surnames as whole words so "Miguel de Unamuno" no longer matches "Miguel de
   Cervantes".
+
+## Lecturas
+
+- A reading is a `/lecturas/{codlec}` row: `codlec`, `fechaInicio`, `fechaFin`, `formato` and
+  `libro` (the book's key). A row with `fechaInicio` and no `fechaFin` is a **lectura en
+  curso**; there is no separate node and no `enCurso` flag. `lecturaEnCurso()` is the single
+  test, used by both pages.
+- In `lector.html`, after a successful save `prepararLectura(clave)` enables «Empezar a leer».
+  The form (`empezarLectura()`) prefills today's date, allows an earlier start (a book read
+  before) and an optional finish date, then `registrarLectura()` writes the row with
+  `siguienteId('ultimoCodlec')`. It refuses a finish date earlier than the start and a second
+  open reading of the same book. Started readings are not saved with the book: the user has
+  to press the button, so adding a book does not imply reading it.
+- `lecturasAbiertas` caches the open rows per page (`db.ref('lecturas').get()` once, ~300
+  rows, same client-side scan as `buscarEnFirebase`); `prepararLectura()` updates it after a
+  registration. Opening the same book again then shows «Ya hay una lectura en curso».
+- In `consulta.html` the «En curso» tab lists open readings with a date field (today by
+  default, `min` = start date) and «Dar por acabado», which sets only
+  `/lecturas/{codlec}/fechaFin` and then calls `recalcularLecturas()` + `aplicar()`.
+  `lector.html` links there with `consulta.html?pestana=curso`; `prepararPestanas()` reads the
+  `pestana` query parameter.
+- `recalcularLecturas()` rebuilds `POR_LIBRO`. A reading en curso does **not** count as read
+  (no `veces`, no pages, no author pages/days) until it has a `fechaFin`; otherwise a book
+  would appear as read the day it is started. The old rows with neither date (codlec 77 and
+  260) do count, as imported history.
+- The «En curso» list deliberately ignores the filters: a filter hiding a half-read book
+  would make it impossible to finish from the panel.
+
+## Autores
+
+- `asegurarAutor()` only creates an author when the book is saved and the person is not
+  already in `/autores`. It returns `{ coda, notas }`; the note
+  ("Autor nuevo: … (Reino Unido, 1775–1817, mujer).") is appended to the save message.
+  - Matching cannot be a plain string compare: 64 of the 113 imported rows store only the
+    surname in `autor` (`"Pérez-Reverte"`, `"García Márquez"`) while `nombre`/`apellidos`
+    hold the rest, so an exact lookup would duplicate most authors. `mismoAutor()` splits
+    both sides into tokens (`tokensNombre()`, accents/dots/hyphens removed) and accepts when
+    the tail of the scanned name starts the stored surnames and the remaining words match the
+    given names, initials included (`"J.R.R. Tolkien"` → `"John Ronald Reuel Tolkien"`).
+  - Two rows matching the same name (`"Cornwell"`) are treated as ambiguous: `buscarAutor()`
+    returns nothing rather than linking to the wrong person.
+  - `limpiarNombreAutor()` runs first, so `"Pérez-Reverte, Arturo"` is looked up as
+    `"Arturo Pérez-Reverte"`.
+- Before inserting, `fichaDeAutor()` fills `nombre`/`apellidos`, `nacionalidad`, `nacimiento`,
+  `muerte` and `sexo`:
+  - Search in `es.wikipedia.org` by plain name; accept the first article whose short
+    description looks like a writer (`TIPO_AUTOR`) **and** whose title matches the name
+    (`nombreDeAutorCoincide()`: the surname must appear and the title's given names must
+    appear in the input, initials allowed; a one-word name must match the title exactly).
+    That is what keeps `"Gabriel García Lorca"` from taking Federico's dates. Anything else
+    is discarded rather than guessed: with no clear match the author is created with empty
+    fields, like before.
+  - Wikidata claims from the article's Q: `P21` sex → `varón`/`mujer` (the `.mdb` vocabulary),
+    `P27` country (Spanish label, with `PAISES_ALIAS` for historical names), `P569`/`P570`
+    years, `P735`/`P734` given/family names.
+  - The catalog names British authors by constituent country (`Inglaterra`, `Gales`,
+    `Escocia`), so `"Reino Unido"` is only a last resort. When `P27` resolves to the UK,
+    `fichaDeAutor()` refines it in this order: `P27` itself naming England/Scotland/Wales/
+    Northern Ireland (`PAISES_UK` QIDs), the article's gentilicio (`escritor galés` →
+    Gales, `GENTILICIOS_UK`), and finally the birthplace (`P19`) walking up `P131` a few
+    levels (`paisUkDeNacimiento()`). Orwell (born in India, "escritor británico") stays
+    `Reino Unido`; Tolkien is `Inglaterra` because the Spanish article calls him "inglés".
+  - `partirNombre()` splits from the **article title** (`Gabriel García Márquez` →
+    `Gabriel` + `García Márquez`), using the given names only to find where the name ends;
+    that avoids the redundant compounds Wikidata sometimes returns.
+  - With dual citizenship (`P27` has two values) `paisPreferido()` picks the one the article
+    description mentions (`escritora chilena` → Chile) instead of blindly taking the first.
+  - Many Spanish Wikipedia articles have no short description (Richard Adams, for instance).
+    Those are not discarded: `esEscritorWikidata()` checks the occupations (`P106`) and the
+    row is used only if one of them is a writing job (`TIPO_AUTOR`).
+- Only the book's first author is registered; books with several authors keep the rest
+  unlinked. A different spelling of the same author creates a second row.
+
+## Duplicados de autor
+
+- The Revisar tab of `consulta.html` lists author rows that may be the same person. Detection
+  is deliberately looser than `mismoAutor()` in `lector.js`, because a human confirms every
+  merge: `parecidoAutor()` accepts equal names, token-subsequence names with initials
+  (`J. R. R.` ~ `John Ronald Reuel`), incomplete surnames (`Pérez-Reverte` ~
+  `Pérez-Reverte Gutiérrez`), edit distances of 1–2 (`Follet`/`Follett`) and the same surname
+  with the same initial (`Ken`/`Kenneth`). Do not tighten it to `mismoAutor()`: it would miss
+  exactly the rows the tool exists to find.
+- `gruposDeDuplicados()` unions the matching pairs (union-find) into groups. Each group shows
+  every field of every row (coda, nombre, apellidos, autor, nacionalidad, nacimiento, muerte,
+  sexo, libros) so the decision is made with the data in view, then «Conservar esta».
+- Merging asks for `confirm()`, writes the books first as a single multi-path update
+  (`db.ref().update({'libros/<clave>/autor': coda})`), fills the kept row's empty fields from
+  the removed ones and only then deletes the surplus `/autores` rows. Books never point at a
+  missing author if a write fails halfway.
+- Together with «En curso», this is the only part of `consulta.html` that writes to the
+  database.
 
 ## Gotchas
 

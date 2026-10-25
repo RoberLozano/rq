@@ -12,9 +12,16 @@ Valida el dígito verificador, busca los datos en Google Books (con Open Library
 alternativa), completa la sinopsis en español y el año de la obra original con la Wikipedia
 española y Wikidata, y guarda en Firebase Realtime Database.
 
-`consulta.html` es el otro lado: un panel de solo lectura con las métricas del catálogo
+`consulta.html` es el otro lado: un panel con las métricas del catálogo
 (libros leídos, lecturas, páginas, nota media, autores, géneros, idiomas…) y filtros que
-recalculan todo al vuelo.
+recalculan todo al vuelo. Escribe solo en dos sitios: «Revisar», donde busca fichas de autor
+que parezcan la misma persona y permite fusionarlas, y «En curso», donde se da por acabada una
+lectura con la fecha que elijas.
+
+Al guardar un libro aparece **Empezar a leer**: crea una lectura con la fecha de hoy (o la que
+pongas, si lo empezaste antes) y, si quieres, la fecha en que lo acabaste. Las lecturas
+empezadas y sin acabar salen en la pestaña **En curso** de `consulta.html`, con un campo para
+poner el día en que terminaste el libro.
 
 ## Uso
 
@@ -47,7 +54,8 @@ están en [`importar/README.md`](importar/README.md).
 /libros/{isbn13 o codl}   { codl, isbn, titulo, año, añoEdicion, npaginas, nota, idioma,
                             genero, comentario, sinopsis, autor, portada }
 /autores/{coda}           { coda, nombre, apellidos, autor, nacionalidad, nacimiento, muerte, sexo }
-/lecturas/{codlec}        { codlec, fechaInicio, fechaFin, formato, libro, ppm }
+/lecturas/{codlec}        { codlec, fechaInicio, fechaFin, formato, libro }
+                          (fechaFin vacío = lectura en curso)
 /meta/ultimo*             últimos ids usados (se reservan con transacción)
 ```
 

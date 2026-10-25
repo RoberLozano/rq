@@ -44,6 +44,7 @@ var FILTROS = {
 var ORDEN_LIBROS = { col: 'titulo', dir: 1 };
 var ORDEN_AUTORES = { col: 'lecturas', dir: -1 };
 var BUSQUEDA = '';
+var DUPLICADOS = null; // grupos de codas que parecen la misma persona
 
 var ETIQUETAS_ESTADO = { leidos: 'leídos', sinleer: 'sin leer', releidos: 'releídos' };
 var ETIQUETAS_TAMANO = {
@@ -98,6 +99,13 @@ function fecha(iso) {
   var partes = String(iso || '').split('-');
   if (partes.length !== 3) return '';
   return partes[2] + '/' + partes[1] + '/' + partes[0];
+}
+
+/** La fecha de hoy como la guarda la base: aaaa-mm-dd. */
+function hoyIso() {
+  var d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
 }
 
 function ms(iso) {
@@ -195,7 +203,24 @@ async function cargarDatos() {
 
   LIBROS.forEach(function (l) { INDICE[l.clave] = l; });
 
+  recalcularLecturas();
+}
+
+/** Lecturas empezadas y todavía sin fecha de fin. */
+function lecturaEnCurso(le) {
+  return !!(le.fechaInicio && !le.fechaFin);
+}
+
+/**
+ * Rehace las veces que se ha leído cada libro. Una lectura en curso no cuenta
+ * como leída: si no, el libro aparecería como leído el mismo día de empezarlo.
+ * Las filas antiguas sin ninguna fecha sí cuentan (se importaron como lecturas).
+ */
+function recalcularLecturas() {
+  POR_LIBRO = {};
+
   LECTURAS.forEach(function (le) {
+    if (lecturaEnCurso(le)) return;
     var clave = String(le.libro);
     var f = POR_LIBRO[clave];
     if (!f) f = POR_LIBRO[clave] = { veces: 0, ultima: '', formatos: {} };
@@ -203,6 +228,12 @@ async function cargarDatos() {
     var cuando = String(le.fechaFin || le.fechaInicio || '');
     if (cuando > f.ultima) f.ultima = cuando;
     if (le.formato) f.formatos[le.formato] = true;
+  });
+}
+
+function lecturasEnCurso() {
+  return LECTURAS.filter(lecturaEnCurso).sort(function (a, b) {
+    return String(b.fechaInicio).localeCompare(String(a.fechaInicio));
   });
 }
 
@@ -307,6 +338,7 @@ function aplicar() {
   pintarNota();
   pintarPaginas();
   pintarLecturas();
+  pintarCurso();
   pintarAutores();
   pintarReleidos();
   pintarGeneros();
@@ -317,6 +349,7 @@ function aplicar() {
   pintarAnios();
   pintarLibros();
   pintarRevisar();
+  pintarDuplicados();
   pintarFiltrosActivos();
 }
 
@@ -419,6 +452,7 @@ function pintarResumen() {
   var paginasConDias = 0;
 
   LECTURAS_FILTRADAS.forEach(function (le) {
+    if (lecturaEnCurso(le)) return; // aún sin acabar: sus páginas no cuentan
     var l = INDICE[String(le.libro)];
     if (!l) return;
     var p = num(l.npaginas);
@@ -436,11 +470,13 @@ function pintarResumen() {
   }
   var porDia = dias ? paginasConDias / dias : 0;
   var pct = LIBROS_FILTRADOS.length ? Math.round(leidos / LIBROS_FILTRADOS.length * 100) : 0;
+  var enCurso = LECTURAS_FILTRADAS.filter(lecturaEnCurso).length;
 
   $('tarjetas').innerHTML = [
     tarjeta(fmt(LIBROS_FILTRADOS.length), 'libros'),
     tarjeta(fmt(leidos), 'leídos · ' + pct + '%'),
     tarjeta(fmt(LECTURAS_FILTRADAS.length), 'lecturas'),
+    tarjeta(fmt(enCurso), 'en curso'),
     tarjeta(fmt(releidos), 'libros releídos'),
     tarjeta(fmt(paginas), 'páginas leídas'),
     tarjeta(fmt(dias), 'días de lectura'),
@@ -519,7 +555,9 @@ function pintarLecturas() {
     (FILTROS.anio ? ' de ' + (FILTROS.anio === '__vacio' ? 'fecha desconocida' : FILTROS.anio) : '');
 
   pintarTabla('tabla-lecturas', [
-    { titulo: 'Fin', texto: function (le) { return fecha(le.fechaFin) || '—'; } },
+    { titulo: 'Fin', texto: function (le) {
+      return lecturaEnCurso(le) ? 'en curso' : (fecha(le.fechaFin) || '—');
+    } },
     {
       titulo: 'Título', texto: function (le) {
         var l = INDICE[String(le.libro)];
@@ -550,6 +588,91 @@ function pintarLecturas() {
   ], filas, null, false);
 }
 
+/* ---------- lecturas en curso ---------- */
+
+function avisoCurso(texto, error) {
+  var p = $('curso-estado');
+  p.className = error ? 'nota error' : 'nota';
+  p.textContent = texto || '';
+}
+
+/**
+ * Lista las lecturas abiertas con su fecha de fin a la derecha. No depende de
+ * los filtros: si un filtro ocultara un libro a medias, no habría forma de
+ * darlo por acabado desde aquí.
+ */
+function pintarCurso() {
+  var abiertas = lecturasEnCurso();
+
+  $('curso-cuenta').textContent = abiertas.length
+    ? abiertas.length + (abiertas.length === 1 ? ' libro' : ' libros')
+    : 'ninguno';
+
+  if (!abiertas.length) {
+    $('curso').innerHTML = '<p class="nota">No hay lecturas en curso. Se empiezan desde ' +
+      '<a href="lector.html">Añadir libro</a>, con «Empezar a leer».</p>';
+    return;
+  }
+
+  $('curso').innerHTML = abiertas.map(function (le) {
+    var l = INDICE[String(le.libro)] || {};
+    var dias = Math.floor((ms(hoyIso()) - ms(le.fechaInicio)) / 86400000) + 1;
+    var desde = Number.isFinite(dias) && dias > 0
+      ? ' · ' + fmt(dias) + (dias === 1 ? ' día' : ' días')
+      : '';
+
+    return '<article class="en-curso" data-codlec="' + le.codlec + '">' +
+      '<div>' +
+        '<strong>' + esc(l.titulo || '(libro borrado)') + '</strong>' +
+        '<span class="nota">' + esc(nombreAutor(l.autor)) + '</span>' +
+        '<span class="nota">Empezado el ' + fecha(le.fechaInicio) + desde +
+          ' · ' + esc(le.formato || 'sin formato') + '</span>' +
+      '</div>' +
+      '<div class="acciones-curso">' +
+        '<label>Terminado el <input type="date" data-fin="' + le.codlec +
+          '" value="' + hoyIso() + '" min="' + le.fechaInicio + '" max="' + hoyIso() + '"></label>' +
+        '<button type="button" data-terminar="' + le.codlec + '">Dar por acabado</button>' +
+      '</div></article>';
+  }).join('');
+}
+
+/**
+ * Pone la fecha de fin de una lectura. La fila ya existe: es un único cambio
+ * en /lecturas/<codlec>/fechaFin, que es lo que convierte la lectura en
+ * histórica y la saca de «En curso».
+ */
+async function terminarLectura(codlec) {
+  var lectura = null;
+  LECTURAS.forEach(function (le) {
+    if (Number(le.codlec) === Number(codlec)) lectura = le;
+  });
+  if (!lectura) return;
+
+  var campo = document.querySelector('[data-fin="' + codlec + '"]');
+  var fin = (campo && campo.value) || hoyIso();
+  if (lectura.fechaInicio && fin < lectura.fechaInicio) {
+    avisoCurso('La fecha de fin no puede ser anterior a la de inicio (' +
+      fecha(lectura.fechaInicio) + ').', true);
+    return;
+  }
+
+  var boton = document.querySelector('[data-terminar="' + codlec + '"]');
+  if (boton) boton.disabled = true;
+  avisoCurso('Guardando…');
+
+  try {
+    await db.ref('lecturas/' + codlec + '/fechaFin').set(fin);
+    lectura.fechaFin = fin;
+    recalcularLecturas();
+    aplicar();
+    avisoCurso('«' + ((INDICE[String(lectura.libro)] || {}).titulo || 'Libro') +
+      '» dada por acabada el ' + fecha(fin) + '.');
+  } catch (e) {
+    if (boton) boton.disabled = false;
+    avisoCurso('No se pudo guardar la fecha de fin: ' + (e.message || e), true);
+  }
+}
+
 /* ---------- autores ---------- */
 
 function pintarAutores() {
@@ -576,6 +699,7 @@ function pintarAutores() {
   });
 
   LECTURAS_FILTRADAS.forEach(function (le) {
+    if (lecturaEnCurso(le)) return;
     var l = INDICE[String(le.libro)];
     if (!l) return;
     var f = mapa[String(l.autor)];
@@ -811,9 +935,285 @@ function pintarRevisar() {
       return (l.titulo || '(sin título)') + ' (' + l['año'] + ')';
     }).join(', ') + '.');
   }
-  var sinFin = LECTURAS.filter(function (le) { return !le.fechaFin; }).length;
-  if (sinFin) extra.push(sinFin + ' lecturas sin fecha de fin.');
+  var sinInicio = LECTURAS.filter(function (le) { return !le.fechaInicio; }).length;
+  if (sinInicio) extra.push(sinInicio + ' lecturas sin fecha de inicio.');
   $('revisar-extra').textContent = extra.join(' ');
+}
+
+/* ---------- duplicados de autor ---------- */
+
+/** Nombre completo para comparar: sin acentos, sin puntos y sin guiones. */
+function comparable(a) {
+  return norm([a.nombre, a.apellidos].filter(Boolean).join(' ') || a.autor || '')
+    .replace(/[.\-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Distancia de edición, para cazar erratas del tipo Follet/Follett. */
+function distancia(a, b) {
+  var previo = [];
+  var actual = [];
+  var i;
+  var j;
+  for (j = 0; j <= b.length; j++) previo[j] = j;
+  for (i = 1; i <= a.length; i++) {
+    actual[0] = i;
+    for (j = 1; j <= b.length; j++) {
+      actual[j] = Math.min(
+        previo[j] + 1,
+        actual[j - 1] + 1,
+        previo[j - 1] + (a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1)
+      );
+    }
+    var cambio = previo;
+    previo = actual;
+    actual = cambio;
+  }
+  return previo[b.length];
+}
+
+/** ¿Los tokens `a` aparecen en `b` en orden? Una inicial vale por el nombre entero. */
+function tokensEncajan(a, b) {
+  if (!a.length) return false;
+  var i = 0;
+  for (var j = 0; j < b.length && i < a.length; j++) {
+    if (b[j] === a[i] || (a[i].length === 1 && b[j].charAt(0) === a[i])) i++;
+  }
+  return i === a.length;
+}
+
+/**
+ * Comparación a propósito más generosa que la de lector.js: aquí hay una
+ * persona mirando los datos antes de fusionar, así que interesa que salgan las
+ * erratas (Follet/Follett), las iniciales (J. R. R. / John Ronald Reuel) y los
+ * apellidos incompletos (Pérez-Reverte / Pérez-Reverte Gutiérrez).
+ */
+function parecidoAutor(a, b) {
+  var x = comparable(a);
+  var y = comparable(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+
+  var tx = x.split(' ');
+  var ty = y.split(' ');
+  if (tokensEncajan(tx, ty) || tokensEncajan(ty, tx)) return true;
+
+  // Mismo apellido y misma inicial: «Ken Follet» y «Kenneth Follett» pueden ser
+  // la misma persona con el nombre desarrollado.
+  if (a.apellidos && b.apellidos && a.nombre && b.nombre &&
+    norm(a.apellidos).trim() === norm(b.apellidos).trim() &&
+    norm(a.nombre).trim().charAt(0) === norm(b.nombre).trim().charAt(0)) return true;
+
+  var corto = Math.min(x.length, y.length);
+  return distancia(x, y) <= (corto >= 10 ? 2 : 1);
+}
+
+/** Agrupa las codas que parecen la misma persona (unión de parecidos). */
+function gruposDeDuplicados() {
+  var lista = Object.keys(AUTORES).filter(function (k) { return AUTORES[k]; });
+  var padre = {};
+  lista.forEach(function (k) { padre[k] = k; });
+
+  function raiz(k) {
+    while (padre[k] !== k) {
+      padre[k] = padre[padre[k]];
+      k = padre[k];
+    }
+    return k;
+  }
+
+  for (var i = 0; i < lista.length; i++) {
+    for (var j = i + 1; j < lista.length; j++) {
+      if (!parecidoAutor(AUTORES[lista[i]], AUTORES[lista[j]])) continue;
+      var ra = raiz(lista[i]);
+      var rb = raiz(lista[j]);
+      if (ra !== rb) padre[rb] = ra;
+    }
+  }
+
+  var grupos = {};
+  lista.forEach(function (k) {
+    var r = raiz(k);
+    if (!grupos[r]) grupos[r] = [];
+    grupos[r].push(Number(k));
+  });
+
+  return Object.keys(grupos)
+    .map(function (r) { return grupos[r]; })
+    .filter(function (g) { return g.length > 1; })
+    .sort(function (a, b) {
+      return nombreAutor(a[0]).localeCompare(nombreAutor(b[0]), 'es');
+    });
+}
+
+/** Ficha completa de un autor, con todas sus columnas a la vista. */
+function fichaDuplicadoHtml(coda, libros) {
+  var a = AUTORES[String(coda)] || {};
+  var filas = [
+    ['coda', coda],
+    ['nombre', a.nombre],
+    ['apellidos', a.apellidos],
+    ['autor', a.autor],
+    ['nacionalidad', a.nacionalidad],
+    ['nacimiento', a.nacimiento],
+    ['muerte', a.muerte],
+    ['sexo', a.sexo],
+    ['libros', libros]
+  ];
+
+  return '<div class="ficha-autor">' +
+    '<div class="cabecera"><strong>' + esc(nombreAutor(coda)) + '</strong>' +
+      '<span class="nota">coda ' + coda + '</span></div>' +
+    '<dl>' + filas.map(function (f) {
+      var vacio = f[1] === null || f[1] === undefined || f[1] === '';
+      return '<dt>' + f[0] + '</dt><dd>' + (vacio ? '—' : esc(f[1])) + '</dd>';
+    }).join('') + '</dl>' +
+    '<button type="button" class="chip" data-conservar="' + coda + '">Conservar esta</button>' +
+    '</div>';
+}
+
+function pintarDuplicados() {
+  var contenedor = $('duplicados');
+  if (!contenedor) return;
+
+  if (!DUPLICADOS) DUPLICADOS = gruposDeDuplicados();
+
+  if (!DUPLICADOS.length) {
+    $('duplicados-cuenta').textContent = 'ninguno';
+    contenedor.innerHTML = '<p class="nota">Ahora mismo no hay fichas que parezcan la misma persona.</p>';
+    return;
+  }
+
+  var cuentas = {};
+  LIBROS.forEach(function (l) {
+    var k = String(l.autor);
+    cuentas[k] = (cuentas[k] || 0) + 1;
+  });
+
+  $('duplicados-cuenta').textContent = DUPLICADOS.length +
+    (DUPLICADOS.length === 1 ? ' grupo' : ' grupos');
+
+  // La primera vez que aparecen, se despliega el bloque: si no, pasa inadvertido.
+  if (!contenedor.getAttribute('data-visto')) {
+    contenedor.setAttribute('data-visto', '1');
+    $('bloque-duplicados').open = true;
+  }
+
+  contenedor.innerHTML = DUPLICADOS.map(function (grupo) {
+    var codas = grupo.join(',');
+    return '<article class="duplicado" data-grupo="' + codas + '">' +
+      '<p class="nota">¿La misma persona? Comprueba los datos antes de elegir.</p>' +
+      '<div class="comparar">' +
+      grupo.map(function (coda) {
+        return fichaDuplicadoHtml(coda, cuentas[String(coda)] || 0);
+      }).join('') +
+      '</div></article>';
+  }).join('');
+}
+
+/** Rehace las listas desplegables que dependen de /autores tras una fusión. */
+function refrescarControlesAutores() {
+  var codas = Object.keys(AUTORES).filter(function (k) { return AUTORES[k]; });
+  codas.sort(function (a, b) { return nombreAutor(a).localeCompare(nombreAutor(b), 'es'); });
+
+  var selAutor = document.querySelector('[data-filtro="autor"]');
+  opciones(selAutor, codas.map(function (k) {
+    return { valor: k, texto: nombreAutor(k) };
+  }));
+  if (FILTROS.autor && !AUTORES[FILTROS.autor]) FILTROS.autor = '';
+  selAutor.value = FILTROS.autor || '';
+
+  var selSexo = document.querySelector('[data-filtro="sexo"]');
+  var sexos = valoresUnicos(codas.map(function (k) { return AUTORES[k]; }),
+    function (a) { return a.sexo; });
+  sexos.push('__vacio');
+  opciones(selSexo, sexos.map(function (s) {
+    return { valor: s, texto: s === '__vacio' ? '(sin dato)' : s };
+  }));
+  if (sexos.indexOf(FILTROS.sexo) === -1) FILTROS.sexo = '';
+  selSexo.value = FILTROS.sexo || '';
+
+  var selPais = document.querySelector('[data-filtro="pais"]');
+  var paises = valoresUnicos(codas.map(function (k) { return AUTORES[k]; }),
+    function (a) { return a.nacionalidad; });
+  paises.push('__vacio');
+  opciones(selPais, paises.map(function (p) {
+    return { valor: p, texto: p === '__vacio' ? '(sin dato)' : p };
+  }));
+  if (paises.indexOf(FILTROS.pais) === -1) FILTROS.pais = '';
+  selPais.value = FILTROS.pais || '';
+}
+
+/**
+ * Pasa los libros de las fichas sobrantes a la elegida, copia los datos que le
+ * falten y borra las sobrantes. Primero los libros y luego el borrado: si algo
+ * falla a medias, ningún libro se queda apuntando a una ficha inexistente.
+ */
+async function fusionarAutores(conservar, sobrantes) {
+  var destino = AUTORES[String(conservar)];
+  if (!destino || !sobrantes.length) return;
+
+  var conta = sobrantes.map(function (c) {
+    return LIBROS.filter(function (l) { return String(l.autor) === String(c); }).length;
+  });
+  var movidos = conta.reduce(function (a, b) { return a + b; }, 0);
+
+  var aviso = 'Se conservará «' + nombreAutor(conservar) + '» (coda ' + conservar + ') y se ' +
+    'borrarán ' + sobrantes.map(function (c) {
+      return '«' + nombreAutor(c) + '» (coda ' + c + ')';
+    }).join(' y ') + '.';
+  if (movidos) aviso += ' Se moverán ' + movidos + ' libros.';
+  if (!window.confirm(aviso + ' ¿Seguir?')) return;
+
+  var estado = $('duplicados-estado');
+  estado.className = 'nota';
+  estado.textContent = 'Fusionando…';
+
+  try {
+    var cambios = {};
+    LIBROS.forEach(function (l) {
+      if (sobrantes.indexOf(Number(l.autor)) !== -1) {
+        cambios['libros/' + l.clave + '/autor'] = conservar;
+      }
+    });
+    if (Object.keys(cambios).length) await db.ref().update(cambios);
+
+    // Lo que falte en la ficha que se queda se copia de las sobrantes.
+    var relleno = {};
+    sobrantes.forEach(function (c) {
+      var a = AUTORES[String(c)] || {};
+      ['nombre', 'apellidos', 'nacionalidad', 'nacimiento', 'muerte', 'sexo']
+        .forEach(function (campo) {
+          var vacio = destino[campo] === null || destino[campo] === undefined || destino[campo] === '';
+          if (vacio && a[campo]) {
+            relleno[campo] = a[campo];
+            destino[campo] = a[campo];
+          }
+        });
+    });
+    if (Object.keys(relleno).length) {
+      await db.ref('autores/' + conservar).update(relleno);
+    }
+
+    for (var i = 0; i < sobrantes.length; i++) {
+      await db.ref('autores/' + sobrantes[i]).remove();
+      delete AUTORES[String(sobrantes[i])];
+    }
+
+    LIBROS.forEach(function (l) {
+      if (sobrantes.indexOf(Number(l.autor)) !== -1) l.autor = conservar;
+    });
+
+    DUPLICADOS = null;
+    refrescarControlesAutores();
+    pintarDuplicados();
+    aplicar();
+    estado.textContent = 'Fusionado en «' + nombreAutor(conservar) + '».';
+  } catch (e) {
+    estado.className = 'nota error';
+    estado.textContent = 'No se pudo fusionar: ' + (e.message || e);
+  }
 }
 
 /* ---------- filtros activos ---------- */
@@ -982,6 +1382,22 @@ function prepararControles() {
     aplicar();
   });
 
+  $('duplicados').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-conservar]');
+    if (!b) return;
+    var grupo = b.closest('[data-grupo]').getAttribute('data-grupo');
+    var conservar = Number(b.getAttribute('data-conservar'));
+    fusionarAutores(conservar, grupo.split(',').map(Number).filter(function (c) {
+      return c !== conservar;
+    }));
+  });
+
+  $('curso').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-terminar]');
+    if (!b) return;
+    terminarLectura(Number(b.getAttribute('data-terminar')));
+  });
+
   $('tabla-autores').addEventListener('click', function (e) {
     var tr = e.target.closest('tr[data-autor]');
     if (!tr) return;
@@ -1045,11 +1461,17 @@ function prepararPestanas() {
     });
   });
 
-  mostrarPestana('resumen');
-
   // En el móvil los filtros empiezan plegados para no comerse la pantalla.
   if (window.matchMedia('(max-width: 760px)').matches) {
     $('panel-filtros').open = false;
+  }
+
+  // lector.html enlaza con consulta.html?pestana=curso.
+  var pedida = new URLSearchParams(window.location.search).get('pestana') || '';
+  if (/^[a-z]+$/.test(pedida) && document.querySelector('[data-pestana="' + pedida + '"]')) {
+    mostrarPestana(pedida);
+  } else {
+    mostrarPestana('resumen');
   }
 }
 

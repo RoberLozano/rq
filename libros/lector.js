@@ -23,7 +23,7 @@ var escaneando = false;
 var camaraOcr = null;
 var ocrOcupado = false;
 var ultimoLibro = null;
-var autoresCache = null;
+var autoresCache = null; // lista de fichas de /autores, para no crear duplicados
 var metaInicial = null;
 var cacheLibros = null;
 var cacheEdiciones = {};
@@ -186,6 +186,21 @@ function normalizarNombre(texto) {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/** Trocea un nombre para compararlo: sin acentos, sin puntos y sin guiones. */
+function tokensNombre(texto) {
+  return normalizarNombre(texto).split(/[\s.\-]+/).filter(Boolean);
+}
+
+/** ¿Los tokens `a` aparecen en `b` en orden? Una inicial vale por el nombre entero. */
+function tokensEncajan(a, b) {
+  if (!a.length) return true;
+  var i = 0;
+  for (var j = 0; j < b.length && i < a.length; j++) {
+    if (b[j] === a[i] || (a[i].length === 1 && b[j].charAt(0) === a[i])) i++;
+  }
+  return i === a.length;
 }
 
 /* ---------- ISBN ---------- */
@@ -761,6 +776,7 @@ async function buscar(isbn) {
 }
 
 function mostrar(libro) {
+  ultimoLibro = libro;
   var v = libro.info || {};
   $('titulo').textContent = v.title || '(sin datos de Google Books)';
   $('autores').textContent = (v.authors || []).join(' · ');
@@ -799,6 +815,13 @@ function mostrar(libro) {
 
   $('btn-guardar').textContent = libro.existente ? 'Actualizar en Firebase' : 'Guardar en Firebase';
   $('resultado').hidden = false;
+
+  // La lectura necesita el libro ya en la base: hasta entonces, el botón espera.
+  $('lectura-form').hidden = true;
+  $('btn-empezar').hidden = false;
+  $('btn-empezar').disabled = true;
+  $('lectura-aviso').textContent = 'Guarda el libro para poder registrar una lectura.';
+  if (libro.existente) prepararLectura(libro.existente.clave);
 }
 
 /* ---------- Firebase ---------- */
@@ -858,36 +881,417 @@ async function valorInicial(nombre) {
   return maximo;
 }
 
-async function asegurarAutor(nombre) {
-  var limpio = String(nombre || '').trim();
-  if (!limpio) return null;
+/* ---------- autores ---------- */
 
-  if (!autoresCache) {
-    var snap = await db.ref('autores').get();
-    autoresCache = {};
-    snap.forEach(function (hijo) {
-      var a = hijo.val() || {};
-      var clave = normalizarNombre(a.autor || [a.nombre, a.apellidos].filter(Boolean).join(' '));
-      if (clave) autoresCache[clave] = Number(hijo.key);
+var TIPO_AUTOR = /(escritor|novelista|poeta|poetisa|dramaturg|ensayista|cuentista|guionista|periodista|traductor|traductora|biógrafo|biógrafa|historiador|filósofo|filósofa)/i;
+
+var SEXOS_WIKIDATA = {
+  Q6581097: 'varón',
+  Q44148: 'varón',
+  Q6581072: 'mujer',
+  Q1097630: 'mujer'
+};
+
+/** Descripción corta y Q de Wikidata de los artículos candidatos, sin extractos. */
+async function fichasAutores(titulos) {
+  try {
+    var url = 'https://es.wikipedia.org/w/api.php?action=query&format=json&origin=*' +
+      '&prop=description|pageprops&redirects=1&titles=' + encodeURIComponent(titulos.join('|'));
+    var r = await fetch(url);
+    if (!r.ok) return [];
+    var json = await r.json();
+    var paginas = (json.query && json.query.pages) || {};
+    var redirecciones = {};
+    ((json.query && json.query.redirects) || []).forEach(function (x) {
+      redirecciones[x.from] = x.to;
     });
+
+    var porTitulo = {};
+    Object.keys(paginas).forEach(function (clave) {
+      var p = paginas[clave];
+      if (!p || p.missing !== undefined) return;
+      porTitulo[p.title] = {
+        titulo: p.title,
+        descripcion: p.description || '',
+        qid: (p.pageprops && p.pageprops.wikibase_item) || ''
+      };
+    });
+
+    var salida = [];
+    for (var i = 0; i < titulos.length; i++) {
+      var ficha = porTitulo[titulos[i]] || porTitulo[redirecciones[titulos[i]]];
+      if (ficha) salida.push(ficha);
+    }
+    return salida;
+  } catch (e) {
+    return [];
+  }
+}
+
+function valoresAfirmacion(entidad, propiedad) {
+  var lista = (entidad && entidad.claims && entidad.claims[propiedad]) || [];
+  return lista.map(function (afirmacion) {
+    return afirmacion.mainsnak && afirmacion.mainsnak.datavalue
+      ? afirmacion.mainsnak.datavalue.value
+      : null;
+  }).filter(Boolean);
+}
+
+function idsAfirmacion(entidad, propiedad) {
+  return valoresAfirmacion(entidad, propiedad)
+    .map(function (valor) { return valor.id; })
+    .filter(Boolean);
+}
+
+/** Año de una fecha de Wikidata ("+1951-00-00T00:00:00Z" → 1951). */
+function anioAfirmacion(entidad, propiedad) {
+  var valores = valoresAfirmacion(entidad, propiedad);
+  for (var i = 0; i < valores.length; i++) {
+    var partes = /^([+-])(\d{4,})/.exec(valores[i].time || '');
+    if (partes) return (partes[1] === '-' ? -1 : 1) * Number(partes[2]);
+  }
+  return 0;
+}
+
+async function entidadWikidata(qid) {
+  try {
+    var url = 'https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&origin=*' +
+      '&props=claims&ids=' + encodeURIComponent(qid);
+    var r = await fetch(url);
+    if (!r.ok) return null;
+    var json = await r.json();
+    return (json.entities && json.entities[qid]) || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/** Etiquetas en español (o inglés) de varios Q de golpe. */
+async function etiquetasWikidata(ids) {
+  var limpios = ids.filter(function (id, i) { return id && ids.indexOf(id) === i; });
+  if (!limpios.length) return {};
+  try {
+    var url = 'https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&origin=*' +
+      '&props=labels&languages=es|en&ids=' + encodeURIComponent(limpios.join('|'));
+    var r = await fetch(url);
+    if (!r.ok) return {};
+    var json = await r.json();
+    var entidades = json.entities || {};
+    var salida = {};
+    Object.keys(entidades).forEach(function (id) {
+      var etiquetas = entidades[id].labels || {};
+      salida[id] = (etiquetas.es && etiquetas.es.value) ||
+        (etiquetas.en && etiquetas.en.value) || '';
+    });
+    return salida;
+  } catch (e) {
+    return {};
+  }
+}
+
+/** El título del artículo tiene que cuadrar con el nombre: evita homónimos. */
+function nombreDeAutorCoincide(nombre, titulo) {
+  var limpioTitulo = String(titulo || '').replace(/\s*\([^)]*\)\s*$/, '');
+  var entrada = tokensNombre(nombre);
+  var articulo = tokensNombre(limpioTitulo);
+  if (!entrada.length || !articulo.length) return false;
+
+  // Un solo nombre («Homero», «Platón»): solo vale la coincidencia exacta.
+  if (entrada.length < 2) return normalizarNombre(nombre) === normalizarNombre(limpioTitulo);
+
+  // El apellido tiene que estar en el título.
+  var apellido = entrada[entrada.length - 1];
+  if (normalizarNombre(titulo).indexOf(apellido) === -1) return false;
+
+  // Y los nombres del título tienen que estar en la entrada: «Gabriel García
+  // Lorca» no puede acabar con la ficha de Federico García Lorca.
+  return tokensEncajan(articulo, entrada);
+}
+
+/**
+ * Parte el nombre en `nombre` y `apellidos`. Manda el título del artículo
+ * ("Gabriel García Márquez" → Gabriel / García Márquez); los nombres de
+ * Wikidata solo sirven para saber dónde acaba el nombre de pila.
+ */
+function partirNombre(titulo, pila, familia) {
+  var limpio = String(titulo || '').trim().replace(/\s*\([^)]*\)\s*$/, '');
+  var partes = limpio.split(/\s+/).filter(Boolean);
+  if (partes.length < 2) return { nombre: limpio, apellidos: '' };
+
+  var dePila = normalizarNombre(pila.join(' ')).split(' ').filter(Boolean);
+  var corte = 0;
+  while (corte < partes.length - 1 &&
+    dePila.indexOf(normalizarNombre(partes[corte])) !== -1) {
+    corte++;
+  }
+  if (corte > 0) {
+    return { nombre: partes.slice(0, corte).join(' '), apellidos: partes.slice(corte).join(' ') };
   }
 
-  var buscado = normalizarNombre(limpio);
-  if (autoresCache[buscado]) return autoresCache[buscado];
+  // Sin nombre de pila reconocible: el último apellido de Wikidata, si cuadra.
+  var ultimo = partes[partes.length - 1];
+  var apellidosWikidata = familia.map(normalizarNombre);
+  if (!apellidosWikidata.length || apellidosWikidata.indexOf(normalizarNombre(ultimo)) !== -1) {
+    return { nombre: partes.slice(0, -1).join(' '), apellidos: ultimo };
+  }
+
+  return { nombre: limpio, apellidos: '' };
+}
+
+// Wikidata usa nombres históricos que en el catálogo van de otra forma.
+var PAISES_ALIAS = {
+  'Reino Unido de Gran Bretaña e Irlanda': 'Reino Unido',
+  'Reino Unido de Gran Bretaña e Irlanda del Norte': 'Reino Unido',
+  'Estados Unidos de América': 'Estados Unidos',
+  'Reino de Inglaterra': 'Inglaterra'
+};
+
+// El catálogo guarda a los británicos por su país («Inglaterra», «Gales»…),
+// así que «Reino Unido» solo se usa cuando no hay forma de precisar.
+var PAISES_UK = {
+  Q21: 'Inglaterra',
+  Q22: 'Escocia',
+  Q25: 'Gales',
+  Q26: 'Irlanda del Norte'
+};
+
+var GENTILICIOS_UK = [
+  [/\b(?:gales|galesa|galeses|galesas)\b/, 'Gales'],
+  [/\b(?:escocia|escoces|escocesa|escoceses|escocesas)\b/, 'Escocia'],
+  [/\b(?:inglaterra|ingles|inglesa|ingleses|inglesas)\b/, 'Inglaterra'],
+  [/\b(?:irlanda del norte|norirlandes|norirlandesa|norirlandeses|norirlandesas)\b/,
+    'Irlanda del Norte']
+];
+
+/** Si la ciudadanía de Wikidata ya es la de un país británico, esa manda. */
+function paisUkDe(ids) {
+  for (var i = 0; i < ids.length; i++) {
+    if (PAISES_UK[ids[i]]) return PAISES_UK[ids[i]];
+  }
+  return '';
+}
+
+/** «escritor galés», «novelista escocesa»…: el gentilicio de la descripción. */
+function paisUkPorDescripcion(descripcion) {
+  var texto = normalizarNombre(descripcion);
+  for (var i = 0; i < GENTILICIOS_UK.length; i++) {
+    if (GENTILICIOS_UK[i][0].test(texto)) return GENTILICIOS_UK[i][1];
+  }
+  return '';
+}
+
+/**
+ * País británico del lugar de nacimiento: sube por «ubicado en la entidad
+ * administrativa» (P131) desde P19 hasta dar con Inglaterra, Escocia, Gales o
+ * Irlanda del Norte. Cuatro saltos bastan para cualquier municipio.
+ */
+async function paisUkDeNacimiento(entidad) {
+  var lugar = idsAfirmacion(entidad, 'P19')[0];
+  for (var salto = 0; salto < 4 && lugar; salto++) {
+    if (PAISES_UK[lugar]) return PAISES_UK[lugar];
+    var sitio = await entidadWikidata(lugar);
+    if (!sitio) return '';
+    var padres = idsAfirmacion(sitio, 'P131');
+    for (var i = 0; i < padres.length; i++) {
+      if (PAISES_UK[padres[i]]) return PAISES_UK[padres[i]];
+    }
+    lugar = padres[0] || '';
+  }
+  return '';
+}
+
+/**
+ * Con doble nacionalidad, Wikidata no garantiza el orden: si la descripción
+ * del artículo dice "escritora chilena", vale más Chile que el primer país.
+ */
+function paisPreferido(paises, descripcion) {
+  var lista = paises.filter(Boolean);
+  if (lista.length < 2) return lista[0] || '';
+
+  var texto = normalizarNombre(descripcion);
+  for (var i = 0; i < lista.length; i++) {
+    var raiz = normalizarNombre(lista[i]).replace(/[aeiou]$/, '');
+    if (raiz.length >= 4 && texto.indexOf(raiz) !== -1) return lista[i];
+  }
+  return lista[0];
+}
+
+/** Sin descripción en el artículo: se mira la ocupación (P106) de Wikidata. */
+async function esEscritorWikidata(entidad) {
+  var oficios = idsAfirmacion(entidad, 'P106');
+  if (!oficios.length) return false;
+  var etiquetas = await etiquetasWikidata(oficios);
+  for (var i = 0; i < oficios.length; i++) {
+    if (TIPO_AUTOR.test(etiquetas[oficios[i]] || '')) return true;
+  }
+  return false;
+}
+
+/**
+ * Sexo, país, años y nombre partido de un autor, desde la Wikipedia española y
+ * Wikidata. Devuelve null si no hay coincidencia clara: mejor vacío que datos
+ * de otra persona.
+ */
+async function fichaDeAutor(nombre) {
+  var titulos = await titulosWikipedia(nombre);
+  if (!titulos.length) return null;
+
+  var candidatos = await fichasAutores(titulos.slice(0, 5));
+  var ficha = null;
+  var sinDescripcion = null;
+  for (var i = 0; i < candidatos.length; i++) {
+    var c = candidatos[i];
+    if (!c.qid || !nombreDeAutorCoincide(nombre, c.titulo)) continue;
+    if (c.descripcion && TIPO_AUTOR.test(c.descripcion)) {
+      ficha = c;
+      break;
+    }
+    // Muchos artículos no traen descripción corta: esos se deciden por la
+    // ocupación que declara Wikidata, no por lo que diga el título.
+    if (!c.descripcion && !sinDescripcion) sinDescripcion = c;
+  }
+  if (!ficha) ficha = sinDescripcion;
+  if (!ficha) return null;
+
+  var entidad = await entidadWikidata(ficha.qid);
+  if (!entidad) return null;
+  if (!ficha.descripcion && !(await esEscritorWikidata(entidad))) return null;
+
+  var paises = idsAfirmacion(entidad, 'P27');
+  var pila = idsAfirmacion(entidad, 'P735');
+  var familia = idsAfirmacion(entidad, 'P734');
+  var sexo = idsAfirmacion(entidad, 'P21')[0] || '';
+  var etiquetas = await etiquetasWikidata(paises.concat(pila, familia));
+
+  var nombresPila = pila.map(function (id) { return etiquetas[id]; }).filter(Boolean);
+  var apellidosWikidata = familia.map(function (id) { return etiquetas[id]; }).filter(Boolean);
+  var partido = partirNombre(ficha.titulo, nombresPila, apellidosWikidata);
+  var pais = paisPreferido(paises.map(function (id) { return etiquetas[id]; }), ficha.descripcion);
+  pais = PAISES_ALIAS[pais] || pais;
+
+  // «Reino Unido» a secas solo cuando no haya forma de precisar el país.
+  if (pais === 'Reino Unido') {
+    pais = paisUkDe(paises) ||
+      paisUkPorDescripcion(ficha.descripcion) ||
+      (await paisUkDeNacimiento(entidad)) ||
+      pais;
+  }
+
+  return {
+    nombre: partido.nombre,
+    apellidos: partido.apellidos,
+    nacionalidad: pais,
+    nacimiento: anioAfirmacion(entidad, 'P569') || null,
+    muerte: anioAfirmacion(entidad, 'P570') || null,
+    sexo: SEXOS_WIKIDATA[sexo] || ''
+  };
+}
+
+/**
+ * ¿La entrada es la misma persona que la ficha? En /autores el campo `autor`
+ * guarda a veces solo el apellido («Pérez-Reverte»), así que comparar cadenas
+ * no basta: «Arturo Pérez-Reverte» tiene que cuadrar por tokens.
+ */
+function mismoAutor(entrada, ficha) {
+  var e = tokensNombre(entrada);
+  if (!e.length) return false;
+
+  if (ficha.autor && normalizarNombre(entrada) === normalizarNombre(ficha.autor)) return true;
+  var completo = [ficha.nombre, ficha.apellidos].filter(Boolean).join(' ');
+  if (completo && normalizarNombre(entrada) === normalizarNombre(completo)) return true;
+
+  var apellidos = tokensNombre(ficha.apellidos);
+  var nombre = tokensNombre(ficha.nombre);
+  if (!apellidos.length) {
+    // Sin nombre partido, `autor` es la única forma conocida.
+    apellidos = tokensNombre(ficha.autor);
+    nombre = [];
+  }
+  if (!apellidos.length) return false;
+
+  // La cola de la entrada tiene que empezar los apellidos («Pérez-Reverte» ⊂
+  // «Pérez-Reverte Gutiérrez») y lo que quede delante son los nombres.
+  for (var largo = Math.min(e.length, apellidos.length); largo >= 1; largo--) {
+    var cola = e.slice(e.length - largo);
+    var igual = true;
+    for (var i = 0; i < largo; i++) {
+      if (cola[i] !== apellidos[i]) { igual = false; break; }
+    }
+    if (igual && tokensEncajan(e.slice(0, e.length - largo), nombre)) return true;
+  }
+  return false;
+}
+
+async function cargarAutores() {
+  if (autoresCache) return autoresCache;
+  var snap = await db.ref('autores').get();
+  autoresCache = [];
+  snap.forEach(function (hijo) {
+    var a = hijo.val() || {};
+    var coda = Number(hijo.key);
+    if (!coda) return;
+    autoresCache.push({
+      coda: coda,
+      autor: a.autor || '',
+      nombre: a.nombre || '',
+      apellidos: a.apellidos || ''
+    });
+  });
+  return autoresCache;
+}
+
+/** Ficha existente del autor, o null si no hay ninguna o hay varias. */
+function buscarAutor(nombre, lista) {
+  var encontrados = lista.filter(function (a) { return mismoAutor(nombre, a); });
+  // Dos autores con el mismo apellido: mejor no adivinar cuál es.
+  return encontrados.length === 1 ? encontrados[0] : null;
+}
+
+async function asegurarAutor(nombre) {
+  // "Pérez-Reverte, Arturo" → "Arturo Pérez-Reverte".
+  var limpio = limpiarNombreAutor(nombre);
+  if (!limpio) return { coda: null, notas: '' };
+
+  var lista = await cargarAutores();
+  var existente = buscarAutor(limpio, lista);
+  if (existente) return { coda: existente.coda, notas: '' };
+
+  estado('Buscando datos del autor «' + limpio + '»…');
+  var ficha = null;
+  try {
+    ficha = await fichaDeAutor(limpio);
+  } catch (e) { /* se crea sin datos */ }
 
   var coda = await siguienteId('ultimoCoda');
   await db.ref('autores/' + coda).set({
     coda: coda,
-    nombre: limpio,
-    apellidos: '',
+    nombre: (ficha && ficha.nombre) || limpio,
+    apellidos: (ficha && ficha.apellidos) || '',
     autor: limpio,
-    nacionalidad: '',
-    nacimiento: null,
-    muerte: null,
-    sexo: ''
+    nacionalidad: (ficha && ficha.nacionalidad) || '',
+    nacimiento: (ficha && ficha.nacimiento) || null,
+    muerte: (ficha && ficha.muerte) || null,
+    sexo: (ficha && ficha.sexo) || ''
   });
-  autoresCache[buscado] = coda;
-  return coda;
+  lista.push({
+    coda: coda,
+    autor: limpio,
+    nombre: (ficha && ficha.nombre) || limpio,
+    apellidos: (ficha && ficha.apellidos) || ''
+  });
+
+  var datos = [];
+  if (ficha && ficha.nacionalidad) datos.push(ficha.nacionalidad);
+  if (ficha && ficha.nacimiento) {
+    datos.push(String(ficha.nacimiento) + (ficha.muerte ? '–' + ficha.muerte : ''));
+  }
+  if (ficha && ficha.sexo) datos.push(ficha.sexo);
+
+  return {
+    coda: coda,
+    notas: ' Autor nuevo: ' + limpio +
+      (datos.length ? ' (' + datos.join(', ') + ').' : ' (sin datos en Wikipedia).')
+  };
 }
 
 async function guardar() {
@@ -905,7 +1309,7 @@ async function guardar() {
   try {
     var isbn = ultimoLibro.isbn;
     var v = ultimoLibro.info || {};
-    var autorCoda = await asegurarAutor((v.authors || [])[0] || '');
+    var autor = await asegurarAutor((v.authors || [])[0] || '');
     var portada = (v.imageLinks && (v.imageLinks.thumbnail || v.imageLinks.smallThumbnail)) || '';
 
     // `año` es el de la obra original; el de la edición va aparte, si difiere.
@@ -923,7 +1327,7 @@ async function guardar() {
       genero: (v.categories || [])[0] || '',
       comentario: '',
       sinopsis: descripcionDe(v.description),
-      autor: autorCoda,
+      autor: autor.coda || null,
       portada: portada.replace(/^http:/, 'https:'),
       actualizado: firebase.database.ServerValue.TIMESTAMP
     };
@@ -937,28 +1341,157 @@ async function guardar() {
     cacheLibros = null;
 
     var mensaje = previo ? 'Libro actualizado.' : 'Libro guardado.';
-
-    if ($('chk-lectura').checked) {
-      var codlec = await siguienteId('ultimoCodlec');
-      await db.ref('lecturas/' + codlec).set({
-        codlec: codlec,
-        fechaInicio: $('fecha-inicio').value || hoy(),
-        fechaFin: $('fecha-fin').value || null,
-        formato: $('formato').value,
-        libro: clave,
-        ppm: null
-      });
-      mensaje += ' Lectura registrada.';
-    }
+    mensaje += autor.notas;
 
     ultimoLibro.existente = { clave: clave };
     $('btn-guardar').textContent = 'Actualizar en Firebase';
     estado(mensaje, 'ok');
+    prepararLectura(clave);
   } catch (e) {
     var ayuda = e && e.code === 'PERMISSION_DENIED'
       ? 'Sin permiso: publica database.rules.json y habilita el acceso anónimo.'
       : (e.message || e.code || 'error desconocido');
     estado('No se pudo guardar: ' + ayuda, 'error');
+  } finally {
+    boton.disabled = false;
+  }
+}
+
+/* ---------- lecturas ---------- */
+
+// Lecturas empezadas y sin acabar, por clave de libro. Se lee una vez y se
+// mantiene al día al registrar: son ~300 filas, no hace falta consultar más.
+var lecturasAbiertas = null;
+
+function fechaCorta(iso) {
+  var partes = String(iso || '').split('-');
+  return partes.length === 3 ? partes[2] + '/' + partes[1] + '/' + partes[0] : '';
+}
+
+async function leerLecturasAbiertas() {
+  if (!lecturasAbiertas) {
+    var abiertas = {};
+    var snap = await db.ref('lecturas').get();
+    snap.forEach(function (hijo) {
+      var le = hijo.val() || {};
+      // Las filas antiguas sin fechaInicio no son lecturas en curso.
+      if (le.libro && le.fechaInicio && !le.fechaFin) {
+        abiertas[String(le.libro)] = le;
+      }
+    });
+    lecturasAbiertas = abiertas;
+  }
+  return lecturasAbiertas;
+}
+
+/**
+ * Prepara la caja «Empezar a leer»: solo se puede usar con el libro ya
+ * guardado, y no deja empezar una segunda lectura si hay una en curso.
+ */
+async function prepararLectura(clave) {
+  $('lectura-form').hidden = true;
+  $('btn-empezar').hidden = false;
+  $('btn-empezar').disabled = true;
+
+  if (!clave) {
+    $('lectura-aviso').textContent = 'Guarda el libro para poder registrar una lectura.';
+    return;
+  }
+  if (!CONFIGURADO) {
+    $('lectura-aviso').textContent = 'Sin Firebase no se pueden registrar lecturas.';
+    return;
+  }
+  if (!db) await firebaseListo;
+
+  $('lectura-aviso').textContent = 'Comprobando lecturas…';
+  try {
+    var enCurso = (await leerLecturasAbiertas())[String(clave)];
+    if (enCurso) {
+      $('lectura-aviso').textContent = 'Ya hay una lectura en curso de este libro, empezada el ' +
+        fechaCorta(enCurso.fechaInicio) + '. Puedes darla por acabada en la biblioteca.';
+      $('btn-empezar').hidden = true;
+      return;
+    }
+    $('lectura-aviso').textContent = 'Puedes empezar a leerlo hoy o cambiar la fecha si lo ' +
+      'empezaste antes.';
+    $('btn-empezar').disabled = false;
+  } catch (e) {
+    $('lectura-aviso').textContent = 'No pude comprobar las lecturas (' + (e.message || e) +
+      '); puedes intentarlo igualmente.';
+    $('btn-empezar').disabled = false;
+  }
+}
+
+function empezarLectura() {
+  if (!ultimoLibro || !ultimoLibro.existente) {
+    estado('Guarda el libro antes de registrar la lectura.', 'error');
+    return;
+  }
+  $('fecha-inicio').value = hoy();
+  $('fecha-fin').value = '';
+  $('fecha-inicio').max = hoy();
+  $('fecha-fin').max = hoy();
+  $('lectura-form').hidden = false;
+  $('btn-empezar').hidden = true;
+  $('fecha-inicio').focus();
+}
+
+async function registrarLectura() {
+  if (!ultimoLibro || !ultimoLibro.existente) return;
+  if (!db && CONFIGURADO) await firebaseListo;
+  if (!db) {
+    estado('Firebase no está configurado: completa firebase-config.js.', 'error');
+    return;
+  }
+
+  var clave = ultimoLibro.existente.clave;
+  var inicio = $('fecha-inicio').value || hoy();
+  var fin = $('fecha-fin').value || '';
+  if (fin && fin < inicio) {
+    estado('La fecha de fin no puede ser anterior a la de inicio.', 'error');
+    return;
+  }
+
+  var boton = $('btn-registrar-lectura');
+  boton.disabled = true;
+  estado('Registrando lectura…');
+
+  try {
+    var abiertas = await leerLecturasAbiertas();
+    if (abiertas[String(clave)]) {
+      $('lectura-form').hidden = true;
+      $('btn-empezar').hidden = true;
+      $('lectura-aviso').textContent = 'Ya hay una lectura en curso de este libro.';
+      estado('Este libro ya tiene una lectura en curso.', 'error');
+      return;
+    }
+
+    var codlec = await siguienteId('ultimoCodlec');
+    var lectura = {
+      codlec: codlec,
+      fechaInicio: inicio,
+      fechaFin: fin || null,
+      formato: $('formato').value,
+      libro: clave
+    };
+    await db.ref('lecturas/' + codlec).set(lectura);
+
+    if (fin) delete abiertas[String(clave)];
+    else abiertas[String(clave)] = lectura;
+
+    $('lectura-form').hidden = true;
+    $('btn-empezar').hidden = true;
+    $('lectura-aviso').textContent = fin
+      ? 'Lectura registrada: del ' + fechaCorta(inicio) + ' al ' + fechaCorta(fin) + '.'
+      : 'Lectura en curso desde el ' + fechaCorta(inicio) + '.';
+    estado(fin
+      ? 'Lectura registrada.'
+      : 'Lectura empezada: aparecerá en «En curso» de la biblioteca.', 'ok');
+  } catch (e) {
+    var ayuda = e && e.code === 'PERMISSION_DENIED'
+      ? 'Sin permiso: publica database.rules.json y habilita el acceso anónimo.'
+      : (e.message || e.code || 'error desconocido');
+    estado('No se pudo registrar la lectura: ' + ayuda, 'error');
   } finally {
     boton.disabled = false;
   }
@@ -1333,8 +1866,12 @@ $('archivo-codigo').addEventListener('change', function (e) {
   if (archivo) codigoDesdeArchivo(archivo);
 });
 
-$('chk-lectura').addEventListener('change', function (e) {
-  $('campos-lectura').hidden = !e.target.checked;
+$('btn-empezar').addEventListener('click', empezarLectura);
+$('btn-registrar-lectura').addEventListener('click', registrarLectura);
+$('btn-cancelar-lectura').addEventListener('click', function () {
+  $('lectura-form').hidden = true;
+  $('btn-empezar').hidden = false;
+  $('btn-empezar').disabled = false;
 });
 
 // Al girar el móvil el vídeo cambia de tamaño: el recuadro se recoloca.

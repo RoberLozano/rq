@@ -35,7 +35,7 @@
 
     * { box-sizing: border-box; }
 
-    /* Sin esto, #campos-lectura { display:flex } le gana al atributo hidden. */
+    /* Sin esto, #lectura-form { display:flex } le gana al atributo hidden. */
     [hidden] { display: none !important; }
 
     body {
@@ -188,15 +188,16 @@
       white-space: pre-line;
     }
 
-    fieldset {
+    #lectura-caja {
       border: 1px solid var(--borde);
       border-radius: .6rem;
       padding: .8rem;
       margin: 1rem 0;
     }
 
-    #campos-lectura { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: .6rem; }
-    #campos-lectura label { display: flex; flex-direction: column; font-size: .9rem; gap: .2rem; }
+    #lectura-form { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: .6rem; }
+    #lectura-form label { display: flex; flex-direction: column; font-size: .9rem; gap: .2rem; }
+    .acciones-lectura { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .6rem; }
 
     @media (max-width: 420px) {
       .buscador { flex-direction: column; }
@@ -206,7 +207,7 @@
 
 <body>
   <main>
-    <h1>Añadir libro 2</h1>
+    <h1>Añadir libro</h1>
     <p>Escanea el código de barras, haz una foto del número o escribe el ISBN.
       <a href="consulta.html">Ver la biblioteca</a></p>
 
@@ -237,11 +238,14 @@
       <dl id="datos"></dl>
       <p id="sinopsis" hidden></p>
 
-      <fieldset>
-        <label><input type="checkbox" id="chk-lectura"> Registrar lectura de este libro</label>
-        <div id="campos-lectura" hidden>
+      <div id="lectura-caja">
+        <p class="nota" id="lectura-aviso">Guarda el libro para poder registrar una lectura.</p>
+        <div class="acciones-lectura">
+          <button type="button" id="btn-empezar" disabled>Empezar a leer</button>
+        </div>
+        <div id="lectura-form" hidden>
           <label>Inicio <input type="date" id="fecha-inicio"></label>
-          <label>Fin <input type="date" id="fecha-fin"></label>
+          <label>Fin (si ya lo has acabado) <input type="date" id="fecha-fin"></label>
           <label>Formato
             <select id="formato">
               <option value="libro">libro</option>
@@ -250,8 +254,13 @@
               <option value="otro">otro</option>
             </select>
           </label>
+          <div class="acciones-lectura">
+            <button type="button" id="btn-registrar-lectura">Registrar lectura</button>
+            <button type="button" id="btn-cancelar-lectura" class="sec">Cancelar</button>
+          </div>
         </div>
-      </fieldset>
+        <p class="nota"><a href="consulta.html?pestana=curso">Ver lecturas en curso en la biblioteca</a></p>
+      </div>
 
       <button id="btn-guardar">Guardar en Firebase</button>
     </section>
