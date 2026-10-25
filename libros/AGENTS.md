@@ -43,7 +43,8 @@ the browser console.
   from the console, and ~700 nodes need no server-side queries.
 - Model: `/libros/{isbn13 | codl}`, `/autores/{coda}`, `/lecturas/{codlec}`, `/meta/ultimo*`.
   New scanned books are keyed by ISBN-13; imported books keep `codl` because they have no
-  ISBN. `lecturas.libro` stores the book's *key* (string), not a numeric FK.
+  ISBN, and a scan of one of them adds the ISBN to that same row (see below).
+  `lecturas.libro` stores the book's *key* (string), not a numeric FK.
 - `/meta/ultimoCodl`, `ultimoCoda`, `ultimoCodlec` store the last id used. Allocate with
   `transaction()` (see `siguienteId`), never by counting rows: `codlec` already reaches 5115.
 - `database.rules.json` requires `auth != null`; the page calls `signInAnonymously()` and
@@ -76,6 +77,43 @@ the browser console.
   compares surnames as whole words so "Miguel de Unamuno" no longer matches "Miguel de
   Cervantes".
 
+## Libro ya catalogado (relectura)
+
+- Los libros importados tienen clave `codl` y no tienen ISBN, así que escanear un ISBN no los
+  encontraba: `guardar()` creaba otra ficha con la clave del ISBN y la lectura se iba a la
+  copia nueva. Por eso, cuando `buscarEnFirebase(isbn)` no devuelve nada (ni por clave ni por
+  el campo `isbn`), `buscar()` llama a `buscarPorTitulo(info)`.
+- `titulosParecidos()` compara `normalizarTitulo()`: sin acentos, sin subtítulo (lo que va tras
+  `:` o `;`), sin paréntesis, sin signos y sin artículos. Vale el título exacto y que el más
+  corto esté contenido en el más largo con dos palabras como mínimo («El hobbit» ~ «El hobbit
+  ilustrado», pero «Casa» no vale por «La casa de los espíritus»). El autor se compara con
+  `mismoAutor()`, el mismo criterio que al crear autores; si la ficha no tiene `autor`, basta
+  el título. Además el **idioma** tiene que ser compatible: el catálogo guarda la edición que
+  se leyó, así que «The Hobbit» (37, inglés) y «El Hobbit» (277, castellano) son dos libros
+  distintos aunque compartan autor y año (ver abajo).
+- `idiomasDeLibro(info)` saca el idioma de la edición de `info.language` (ISO o SIL) y, si no
+  viene, de las palabras vacías del título (`idiomaDeTitulo()`: «El Hobbit» → es, «The Hobbit»
+  → en). `idiomasDeEtiqueta()` traduce las etiquetas del `.mdb` (`castellano`, `inglés`,
+  `francés-castellano`…) a códigos. `idiomasCompatibles()` solo descarta cuando los dos
+  idiomas se conocen y no coinciden; con un idioma desconocido se acepta la ficha, y si queda
+  más de una candidata se pregunta.
+- Con una sola candidata, `ultimoLibro.existente = { clave, porTitulo: true }`: la tarjeta
+  muestra «En tu base: sí (N, sin ISBN)», el botón pasa a «Añadir el ISBN a esa ficha» y
+  «Empezar a leer» ya se puede usar con esa clave sin guardar nada. Una relectura es solo una
+  fila nueva en `/lecturas`.
+- Con varias candidatas (`ambiguo`) no se adivina: aparece un `<select>` (`#existente-lista`)
+  con las claves y sus años. Elegir una equivale a haberla encontrado; «Guardar como libro
+  nuevo» mantiene el comportamiento antiguo. Hoy las 269 fichas se reconocen a sí mismas sin
+  ninguna ambigua.
+- `guardar()` no pisa el catálogo: si la clave no es el ISBN (ficha importada, o una a la que
+  ya se añadió el ISBN), `cambiosConservadores()` escribe **solo** los campos vacíos de
+  `CAMPOS_FICHA` (isbn, título, año, añoEdición, npaginas, nota, idioma, genero, sinopsis,
+  autor, portada). No toca `codl` ni `comentario`, pone `actualizado` solo si algo cambió,
+  conserva el ISBN que ya tuviera (y lo dice en el mensaje) y nunca reserva `codl`. Una ficha
+  con clave ISBN (`9788408045755`) se sigue actualizando entera, como antes.
+- Si el título del catálogo y el que devuelve Open Library no se parecen (otra traducción), no
+  se reconoce y se guarda como libro nuevo. Es preferible a enlazar dos obras distintas.
+
 ## Lecturas
 
 - A reading is a `/lecturas/{codlec}` row: `codlec`, `fechaInicio`, `fechaFin`, `formato` and
@@ -88,9 +126,18 @@ the browser console.
   `siguienteId('ultimoCodlec')`. It refuses a finish date earlier than the start and a second
   open reading of the same book. Started readings are not saved with the book: the user has
   to press the button, so adding a book does not imply reading it.
-- `lecturasAbiertas` caches the open rows per page (`db.ref('lecturas').get()` once, ~300
-  rows, same client-side scan as `buscarEnFirebase`); `prepararLectura()` updates it after a
-  registration. Opening the same book again then shows «Ya hay una lectura en curso».
+- `lecturasPorLibro` caches **all** rows grouped by book key (`db.ref('lecturas').get()` once,
+  ~300 rows, same client-side scan as `buscarEnFirebase`); `registrarLectura()` appends the new
+  row to the cache and re-sorts it. `lecturasHechas(clave)` are the ones that count as read
+  (`!lecturaEnCurso`), so the open one is never counted.
+- `pintarLecturasPrevias(clave)` fills, inside `#lectura-caja`, the «Ver lecturas previas (N)»
+  link next to «Ver lecturas en curso», the line «Leído N veces. Última lectura: dd/mm/aaaa
+  (del … al …)» and a collapsed list of every reading with its format. It runs from
+  `prepararLectura()`, so it shows up as soon as an existing record is found — even if the book
+  is never saved — and refreshes after a registration. «Última lectura» sorts by `fechaFin`,
+  not by `fechaInicio`.
+- Opening the same book again shows «Ya hay una lectura en curso» and hides «Empezar a leer»,
+  but keeps the previous readings visible.
 - In `consulta.html` the «En curso» tab lists open readings with a date field (today by
   default, `min` = start date) and «Dar por acabado», which sets only
   `/lecturas/{codlec}/fechaFin` and then calls `recalcularLecturas()` + `aplicar()`.

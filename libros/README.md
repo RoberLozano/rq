@@ -23,6 +23,19 @@ pongas, si lo empezaste antes) y, si quieres, la fecha en que lo acabaste. Las l
 empezadas y sin acabar salen en la pestaña **En curso** de `consulta.html`, con un campo para
 poner el día en que terminaste el libro.
 
+Si el libro **ya está en el catálogo** (los importados del `.mdb` no tienen ISBN), al escanearlo
+se reconoce por título y autor: la ficha dice «En tu base: sí (N, sin ISBN)», el botón pasa a
+**Añadir el ISBN a esa ficha** y **Empezar a leer** ya está disponible sin guardar nada. Así una
+relectura solo añade una fila a las lecturas, no un libro repetido. Al añadir el ISBN solo se
+rellenan los campos que la ficha tenía vacíos: nunca se pisa el título, la sinopsis ni el
+comentario del catálogo. Si hay varias fichas con el mismo título y autor, la página no elige:
+sale una lista para que digas cuál es.
+
+Cuando el libro ya se ha leído, junto a «Ver lecturas en curso» aparece **Ver lecturas previas
+(N)**, con la fecha de cada lectura y, debajo, cuándo fue la última («Leído 3 veces. Última
+lectura: 17/10/2023»). Dos ediciones de la misma obra en idiomas distintos —«El Hobbit» en
+castellano y «The Hobbit» en inglés— son fichas diferentes y no se mezclan.
+
 ## Uso
 
 ```powershell
@@ -60,7 +73,8 @@ están en [`importar/README.md`](importar/README.md).
 ```
 
 Los libros importados del `.mdb` conservan `codl` como clave porque esa base no tiene ISBN;
-los libros nuevos se guardan con el ISBN-13 como clave.
+los libros nuevos se guardan con el ISBN-13 como clave. Cuando se escanea un ISBN de un libro
+importado, el ISBN se añade a su propia ficha (clave `codl`) en vez de crear otra clave.
 
 `año` es el año en que se publicó la obra por primera vez y `añoEdicion` el de la edición
 escaneada (solo se guarda si difiere). `idioma` usa las etiquetas del catálogo

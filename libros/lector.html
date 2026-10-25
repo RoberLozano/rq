@@ -199,6 +199,21 @@
     #lectura-form label { display: flex; flex-direction: column; font-size: .9rem; gap: .2rem; }
     .acciones-lectura { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .6rem; }
 
+    /* Varias fichas con el mismo título y autor: decide el usuario. */
+    #existente-caja { margin-top: 1rem; }
+    #existente-caja label { display: block; font-size: .9rem; margin-bottom: .3rem; }
+    #existente-lista { width: 100%; }
+
+    /* Lecturas anteriores del mismo libro, plegadas tras el enlace. */
+    #ultima-lectura { margin: .2rem 0 0; }
+    #lista-previas {
+      margin: .4rem 0 0;
+      padding-left: 1.1rem;
+      font-size: .9rem;
+      color: var(--tenue);
+    }
+    #lista-previas li { margin-bottom: .15rem; }
+
     @media (max-width: 420px) {
       .buscador { flex-direction: column; }
     }
@@ -259,7 +274,17 @@
             <button type="button" id="btn-cancelar-lectura" class="sec">Cancelar</button>
           </div>
         </div>
-        <p class="nota"><a href="consulta.html?pestana=curso">Ver lecturas en curso en la biblioteca</a></p>
+        <p class="nota">
+          <a href="consulta.html?pestana=curso">Ver lecturas en curso en la biblioteca</a>
+          · <a href="#" id="btn-previas" hidden>Ver lecturas previas</a>
+        </p>
+        <p class="nota" id="ultima-lectura" hidden></p>
+        <ul id="lista-previas" hidden></ul>
+      </div>
+
+      <div id="existente-caja" hidden>
+        <label for="existente-lista">Ese título ya está en tu base. Elige la ficha:</label>
+        <select id="existente-lista"></select>
       </div>
 
       <button id="btn-guardar">Guardar en Firebase</button>

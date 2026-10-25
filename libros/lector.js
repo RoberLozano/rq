@@ -203,6 +203,38 @@ function tokensEncajan(a, b) {
   return i === a.length;
 }
 
+/** Título comparable: sin acentos, sin subtítulo, sin signos y sin artículos. */
+function normalizarTitulo(titulo) {
+  return normalizarNombre(titulo)
+    .replace(/[:;].*$/, ' ')
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/[^a-z0-9 ]+/g, ' ')
+    .replace(/\b(el|la|los|las|un|una|unos|unas|the|a|an|le|les|il|lo)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * ¿Dos títulos son la misma obra? Vale el título exacto (sin subtítulo) y que
+ * el más corto esté contenido en el más largo, con al menos dos palabras: así
+ * «El hobbit» empareja con «El hobbit ilustrado», pero «Casa» no vale por
+ * «La casa de los espíritus».
+ */
+function titulosParecidos(a, b) {
+  var x = normalizarTitulo(a);
+  var y = normalizarTitulo(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+
+  var tx = x.split(' ').filter(Boolean);
+  var ty = y.split(' ').filter(Boolean);
+  var corto = tx.length <= ty.length ? tx : ty;
+  var largo = tx.length <= ty.length ? ty : tx;
+  if (corto.length < 2) return false;
+
+  return corto.every(function (palabra) { return largo.indexOf(palabra) !== -1; });
+}
+
 /* ---------- ISBN ---------- */
 
 function isbn13Valido(s) {
@@ -362,6 +394,72 @@ var IDIOMAS = {
 
 function etiquetaIdioma(codigo) {
   return (IDIOMAS[codigo] && IDIOMAS[codigo].etiqueta) || '';
+}
+
+// Etiquetas del .mdb y códigos ISO/SIL → un código común para comparar.
+var IDIOMAS_ETIQUETA = {
+  es: 'es', spa: 'es', castellano: 'es', espanol: 'es',
+  en: 'en', eng: 'en', ingles: 'en',
+  fr: 'fr', fre: 'fr', frances: 'fr',
+  de: 'de', ger: 'de', aleman: 'de',
+  it: 'it', ita: 'it', italiano: 'it',
+  pt: 'pt', por: 'pt', portugues: 'pt',
+  ca: 'ca', cat: 'ca', catalan: 'ca',
+  gl: 'gl', glg: 'gl', gallego: 'gl',
+  eu: 'eu', eus: 'eu', euskera: 'eu'
+};
+
+/** Códigos de una etiqueta de idioma: «francés-castellano» → fr, es. */
+function idiomasDeEtiqueta(texto) {
+  var partes = normalizarNombre(texto).split(/[^a-z]+/).filter(Boolean);
+  var codigos = [];
+  for (var i = 0; i < partes.length; i++) {
+    var codigo = IDIOMAS_ETIQUETA[partes[i]];
+    if (codigo && codigos.indexOf(codigo) === -1) codigos.push(codigo);
+  }
+  return codigos;
+}
+
+/**
+ * Idioma de la edición escaneada, en códigos. Solo cuenta lo que se sabe:
+ * `info.idioma` puede ser el «castellano» por defecto de idiomaLibro().
+ * Si la edición no trae idioma, se mira el del título («El Hobbit» / «The
+ * Hobbit»): es lo único que distingue dos ediciones del mismo título.
+ */
+function idiomasDeLibro(info) {
+  var codigos = idiomasDeEtiqueta((info && info.language) || '');
+  if (!codigos.length) {
+    var delTitulo = idiomaDeTitulo((info && info.title) || '');
+    if (delTitulo) codigos = [delTitulo];
+  }
+  return codigos;
+}
+
+/** Idioma del título por sus palabras vacías: «El Hobbit» → es, «The Hobbit» → en. */
+function idiomaDeTitulo(titulo) {
+  var palabras = normalizarNombre(titulo).match(/[a-z]+/g) || [];
+  var es = 0;
+  var en = 0;
+  for (var i = 0; i < palabras.length; i++) {
+    if (PALABRAS_ES.indexOf(palabras[i]) !== -1) es++;
+    if (PALABRAS_EN.indexOf(palabras[i]) !== -1) en++;
+  }
+  if (es > en) return 'es';
+  if (en > es) return 'en';
+  return '';
+}
+
+/**
+ * ¿Pueden ser la misma obra? El catálogo guarda la edición que se leyó, así que
+ * «The Hobbit» en inglés y «El Hobbit» en castellano son dos libros distintos.
+ * Solo se descarta cuando los dos idiomas se conocen y no coinciden.
+ */
+function idiomasCompatibles(a, b) {
+  if (!a.length || !b.length) return true;
+  for (var i = 0; i < a.length; i++) {
+    if (b.indexOf(a[i]) !== -1) return true;
+  }
+  return false;
 }
 
 /**
@@ -703,6 +801,18 @@ async function completarFicha(info, isbn) {
   return ficha;
 }
 
+/** Todos los libros en cliente: son ~270 filas y ya se descargan para buscar. */
+async function cargarLibros() {
+  if (cacheLibros) return cacheLibros;
+
+  var snap = await db.ref('libros').get();
+  cacheLibros = [];
+  snap.forEach(function (hijo) {
+    cacheLibros.push({ clave: hijo.key, datos: hijo.val() || {} });
+  });
+  return cacheLibros;
+}
+
 async function buscarEnFirebase(isbn) {
   if (!db) return null;
 
@@ -717,20 +827,55 @@ async function buscarEnFirebase(isbn) {
     }
     return null;
   } catch (e) {
-    // Reglas sin .indexOn: Firebase rechaza la consulta. Se compara en cliente
-    // (268 libros, una sola descarga por sesión).
-    if (!cacheLibros) {
-      var snap = await db.ref('libros').get();
-      cacheLibros = [];
-      snap.forEach(function (hijo) {
-        cacheLibros.push({ clave: hijo.key, datos: hijo.val() || {} });
-      });
-    }
-    for (var i = 0; i < cacheLibros.length; i++) {
-      if (cacheLibros[i].datos.isbn === isbn) return cacheLibros[i];
+    // Reglas sin .indexOn: Firebase rechaza la consulta. Se compara en cliente.
+    var lista = await cargarLibros();
+    for (var i = 0; i < lista.length; i++) {
+      if (lista[i].datos.isbn === isbn) return lista[i];
     }
     return null;
   }
+}
+
+/**
+ * Busca una ficha existente por título y autor. Los libros importados del
+ * .mdb no tienen ISBN, así que sin esto un libro que ya está en el catálogo
+ * se guardaría otra vez con la clave del ISBN y quedaría duplicado. Al
+ * reconocerlo, la lectura se añade a la ficha que ya existe.
+ */
+async function buscarPorTitulo(info) {
+  if (!db) return null;
+  var titulo = (info && info.title) || '';
+  if (!titulo) return null;
+
+  var autor = limpiarNombreAutor(((info && info.authors) || [])[0] || '');
+  var idiomas = idiomasDeLibro(info);
+  var libros = await cargarLibros();
+  var autores = [];
+  try {
+    autores = await cargarAutores();
+  } catch (e) { /* sin autores solo se compara el título */ }
+
+  var candidatos = libros.filter(function (b) {
+    if (!titulosParecidos(titulo, b.datos.titulo)) return false;
+    // Misma obra en otro idioma: es otro libro, no una ficha que completar.
+    if (!idiomasCompatibles(idiomas, idiomasDeEtiqueta(b.datos.idioma))) return false;
+
+    var coda = b.datos.autor;
+    var sinAutor = coda === null || coda === undefined || coda === '';
+    if (!autor || sinAutor) return true;
+
+    var ficha = null;
+    for (var i = 0; i < autores.length; i++) {
+      if (Number(autores[i].coda) === Number(coda)) { ficha = autores[i]; break; }
+    }
+    return ficha ? mismoAutor(autor, ficha) : false;
+  });
+
+  if (candidatos.length === 1) {
+    return { clave: candidatos[0].clave, datos: candidatos[0].datos, porTitulo: true };
+  }
+  if (candidatos.length > 1) return { ambiguo: candidatos };
+  return null;
 }
 
 async function buscar(isbn) {
@@ -760,12 +905,34 @@ async function buscar(isbn) {
 
     if (CONFIGURADO && !db) await firebaseListo;
     var existente = await buscarEnFirebase(isbn);
-    ultimoLibro = { isbn: isbn, info: info, existente: existente };
+    var ambiguo = null;
+    // Los libros importados del .mdb no tienen ISBN: si el título y el autor
+    // coinciden con una ficha, esa es la que se completa y la que se relee.
+    if (!existente && info) {
+      var porTitulo = null;
+      try {
+        porTitulo = await buscarPorTitulo(info);
+      } catch (e) { /* sin base no hay con qué comparar: se guarda como nuevo */ }
+      if (porTitulo && porTitulo.ambiguo) ambiguo = porTitulo.ambiguo;
+      else if (porTitulo) existente = porTitulo;
+    }
+    ultimoLibro = { isbn: isbn, info: info, existente: existente, ambiguo: ambiguo };
     mostrar(ultimoLibro);
 
     var mensaje = fuente
       ? 'Encontrado en ' + fuente + '.'
       : 'Sin datos en Google Books ni Open Library; puedes guardarlo igual.';
+    if (existente && existente.porTitulo) {
+      var isbnFicha = (existente.datos && existente.datos.isbn) || '';
+      mensaje += ' Ya está en tu base en la ficha ' + existente.clave +
+        (isbnFicha
+          ? ' (con el ISBN ' + isbnFicha + '): el de esta edición no se guarda.'
+          : ' (sin ISBN): al guardar se le añade el ISBN sin crear otro libro.');
+    }
+    if (ambiguo) {
+      mensaje += ' Hay ' + ambiguo.length + ' fichas con ese título y autor: elige la buena ' +
+        'en la lista antes de guardar.';
+    }
     if (info && info.sinopsisEnEspanol === false) {
       mensaje += ' No encontré sinopsis en español para este ISBN.';
     }
@@ -792,6 +959,16 @@ function mostrar(libro) {
   }
 
   var anio = v.anioOriginal || primerAnio(v.publishedDate);
+  var enBase = 'no';
+  if (libro.existente && libro.existente.porTitulo) {
+    var isbnFicha = libro.existente.datos && libro.existente.datos.isbn;
+    enBase = 'sí (' + libro.existente.clave + (isbnFicha ? ', ISBN ' + isbnFicha : ', sin ISBN') + ')';
+  } else if (libro.existente) {
+    enBase = 'sí (' + libro.existente.clave + ')';
+  } else if (libro.ambiguo) {
+    enBase = libro.ambiguo.length + ' fichas con ese título';
+  }
+
   var filas = [
     ['ISBN', libro.isbn],
     ['Editorial', v.publisher],
@@ -800,7 +977,7 @@ function mostrar(libro) {
     ['Páginas', v.pageCount],
     ['Idioma', v.idioma],
     ['Nota media', v.averageRating],
-    ['En tu base', libro.existente ? 'sí (' + libro.existente.clave + ')' : 'no']
+    ['En tu base', enBase]
   ];
 
   $('datos').innerHTML = filas
@@ -813,15 +990,37 @@ function mostrar(libro) {
   sinopsis.textContent = texto;
   sinopsis.hidden = !texto;
 
-  $('btn-guardar').textContent = libro.existente ? 'Actualizar en Firebase' : 'Guardar en Firebase';
+  // Varias fichas con el mismo título y autor: no se adivina, se elige.
+  var caja = $('existente-caja');
+  var lista = $('existente-lista');
+  if (libro.ambiguo && libro.ambiguo.length) {
+    lista.innerHTML = '<option value="">— Guardar como libro nuevo —</option>' +
+      libro.ambiguo.map(function (b) {
+        var anioFicha = b.datos.año || b.datos.añoEdicion;
+        return '<option value="' + escaparHtml(b.clave) + '">' + escaparHtml(b.clave) +
+          ' — ' + escaparHtml(b.datos.titulo || 'sin título') +
+          (anioFicha ? ' (' + escaparHtml(anioFicha) + ')' : '') + '</option>';
+      }).join('');
+    lista.value = '';
+    caja.hidden = false;
+  } else {
+    lista.innerHTML = '';
+    caja.hidden = true;
+  }
+
+  var boton = $('btn-guardar');
+  if (libro.existente && libro.existente.porTitulo) {
+    boton.textContent = 'Añadir el ISBN a esa ficha';
+  } else if (libro.existente) {
+    boton.textContent = 'Actualizar en Firebase';
+  } else {
+    boton.textContent = 'Guardar en Firebase';
+  }
   $('resultado').hidden = false;
 
   // La lectura necesita el libro ya en la base: hasta entonces, el botón espera.
-  $('lectura-form').hidden = true;
-  $('btn-empezar').hidden = false;
-  $('btn-empezar').disabled = true;
-  $('lectura-aviso').textContent = 'Guarda el libro para poder registrar una lectura.';
-  if (libro.existente) prepararLectura(libro.existente.clave);
+  // Con una ficha existente se muestran además sus lecturas anteriores.
+  prepararLectura(libro.existente ? libro.existente.clave : '');
 }
 
 /* ---------- Firebase ---------- */
@@ -1294,6 +1493,37 @@ async function asegurarAutor(nombre) {
   };
 }
 
+/* Campos de una ficha y su nombre en los mensajes. `comentario`, `codl` y
+   `actualizado` quedan fuera: no son datos del ISBN escaneado. */
+var CAMPOS_FICHA = {
+  isbn: 'ISBN',
+  titulo: 'título',
+  'año': 'año original',
+  añoEdicion: 'año de la edición',
+  npaginas: 'páginas',
+  nota: 'nota media',
+  idioma: 'idioma',
+  genero: 'género',
+  sinopsis: 'sinopsis',
+  autor: 'autor',
+  portada: 'portada'
+};
+
+/**
+ * Une lo escaneado con una ficha que ya está en el catálogo sin pisar nada:
+ * solo devuelve los campos que la ficha tenía vacíos.
+ */
+function cambiosConservadores(previo, datos) {
+  var cambios = {};
+  Object.keys(CAMPOS_FICHA).forEach(function (campo) {
+    var nuevo = datos[campo];
+    if (nuevo === null || nuevo === undefined || nuevo === '') return;
+    var viejo = previo[campo];
+    if (viejo === null || viejo === undefined || viejo === '') cambios[campo] = nuevo;
+  });
+  return cambios;
+}
+
 async function guardar() {
   if (!ultimoLibro) return;
   if (!db && CONFIGURADO) await firebaseListo;
@@ -1333,17 +1563,45 @@ async function guardar() {
     };
 
     // Si ya existía bajo otra clave (p. ej. un codl importado), se actualiza esa.
-    var clave = ultimoLibro.existente ? ultimoLibro.existente.clave : isbn;
+    var existente = ultimoLibro.existente;
+    if (!existente) {
+      var elegida = $('existente-lista').value;
+      if (elegida) existente = { clave: elegida, porTitulo: true };
+    }
+    var clave = existente ? existente.clave : isbn;
     var ref = db.ref('libros/' + clave);
     var previo = (await ref.get()).val();
-    if (!previo) datos.codl = await siguienteId('ultimoCodl');
-    await ref.update(datos);
-    cacheLibros = null;
 
-    var mensaje = previo ? 'Libro actualizado.' : 'Libro guardado.';
+    // Una ficha del catálogo (clave codl) manda: solo se le rellenan los huecos.
+    // Nunca se pisan título, sinopsis, comentario ni el ISBN que ya tuviera.
+    var cambios = datos;
+    var mensaje = 'Libro guardado.';
+    if (!previo) {
+      datos.codl = await siguienteId('ultimoCodl');
+    } else if (String(clave) !== String(isbn)) {
+      cambios = cambiosConservadores(previo, datos);
+      var puestos = Object.keys(cambios).map(function (c) { return CAMPOS_FICHA[c]; });
+      if (puestos.length) {
+        cambios.actualizado = firebase.database.ServerValue.TIMESTAMP;
+        mensaje = 'Ficha ' + clave + ' completada: ' + puestos.join(', ') + '.';
+      } else {
+        mensaje = 'La ficha ' + clave + ' ya tenía todos esos datos: no se ha cambiado nada.';
+      }
+      if (previo.isbn && String(previo.isbn) !== String(isbn)) {
+        mensaje += ' Conserva su ISBN (' + previo.isbn + ').';
+      }
+    } else {
+      mensaje = 'Libro actualizado.';
+    }
+
+    if (Object.keys(cambios).length) await ref.update(cambios);
+    cacheLibros = null;
     mensaje += autor.notas;
 
     ultimoLibro.existente = { clave: clave };
+    ultimoLibro.ambiguo = null;
+    $('existente-caja').hidden = true;
+    $('existente-lista').innerHTML = '';
     $('btn-guardar').textContent = 'Actualizar en Firebase';
     estado(mensaje, 'ok');
     prepararLectura(clave);
@@ -1359,29 +1617,105 @@ async function guardar() {
 
 /* ---------- lecturas ---------- */
 
-// Lecturas empezadas y sin acabar, por clave de libro. Se lee una vez y se
-// mantiene al día al registrar: son ~300 filas, no hace falta consultar más.
-var lecturasAbiertas = null;
+// Todas las lecturas del catálogo, agrupadas por clave de libro. Se leen una
+// vez (~300 filas) y se mantienen al día al registrar.
+var lecturasPorLibro = null;
 
 function fechaCorta(iso) {
   var partes = String(iso || '').split('-');
   return partes.length === 3 ? partes[2] + '/' + partes[1] + '/' + partes[0] : '';
 }
 
-async function leerLecturasAbiertas() {
-  if (!lecturasAbiertas) {
-    var abiertas = {};
+/** Una lectura en curso no cuenta como leída hasta que tiene fechaFin. */
+function lecturaEnCurso(le) {
+  return !!le.fechaInicio && !le.fechaFin;
+}
+
+function ordenarLecturas(lista) {
+  lista.sort(function (a, b) {
+    var fa = a.fechaInicio || a.fechaFin || '';
+    var fb = b.fechaInicio || b.fechaFin || '';
+    return String(fb).localeCompare(String(fa));
+  });
+  return lista;
+}
+
+async function leerLecturas() {
+  if (!lecturasPorLibro) {
+    var porLibro = {};
     var snap = await db.ref('lecturas').get();
     snap.forEach(function (hijo) {
       var le = hijo.val() || {};
-      // Las filas antiguas sin fechaInicio no son lecturas en curso.
-      if (le.libro && le.fechaInicio && !le.fechaFin) {
-        abiertas[String(le.libro)] = le;
-      }
+      // Las filas antiguas sin fechaInicio siguen contando como leídas.
+      if (!le.libro) return;
+      var clave = String(le.libro);
+      if (!porLibro[clave]) porLibro[clave] = [];
+      porLibro[clave].push(le);
     });
-    lecturasAbiertas = abiertas;
+    Object.keys(porLibro).forEach(function (clave) { ordenarLecturas(porLibro[clave]); });
+    lecturasPorLibro = porLibro;
   }
-  return lecturasAbiertas;
+  return lecturasPorLibro;
+}
+
+function lecturasDe(clave) {
+  return (lecturasPorLibro && lecturasPorLibro[String(clave)]) || [];
+}
+
+/** Lecturas que ya cuentan: acabadas, o las antiguas que no tienen fechas. */
+function lecturasHechas(clave) {
+  return lecturasDe(clave).filter(function (le) { return !lecturaEnCurso(le); });
+}
+
+/**
+ * «Ver lecturas previas» y, debajo, cuándo se leyó por última vez. Se pinta al
+ * encontrar el libro (aunque no se guarde) y al registrar una lectura.
+ */
+function pintarLecturasPrevias(clave) {
+  var boton = $('btn-previas');
+  var ultima = $('ultima-lectura');
+  var lista = $('lista-previas');
+  var hechas = clave ? lecturasHechas(clave) : [];
+
+  lista.hidden = true;
+  lista.innerHTML = '';
+  boton.hidden = !hechas.length;
+  ultima.hidden = !hechas.length;
+  if (!hechas.length) return;
+
+  var veces = hechas.length;
+  boton.textContent = 'Ver lecturas previas (' + veces + ')';
+
+  var conFecha = hechas.filter(function (le) { return le.fechaFin || le.fechaInicio; })
+    .sort(function (a, b) {
+      return String(b.fechaFin || b.fechaInicio).localeCompare(String(a.fechaFin || a.fechaInicio));
+    });
+
+  if (!conFecha.length) {
+    ultima.textContent = 'Leído ' + veces + (veces === 1 ? ' vez' : ' veces') +
+      ', sin fechas registradas.';
+  } else {
+    var leido = conFecha[0];
+    var texto = 'Leído ' + veces + (veces === 1 ? ' vez' : ' veces') + '. Última lectura: ' +
+      fechaCorta(leido.fechaFin || leido.fechaInicio);
+    if (leido.fechaInicio && leido.fechaFin) {
+      texto += ' (del ' + fechaCorta(leido.fechaInicio) + ' al ' + fechaCorta(leido.fechaFin) + ')';
+    }
+    ultima.textContent = texto;
+  }
+
+  lista.innerHTML = hechas.map(function (le) {
+    var fechas = 'Sin fechas';
+    if (le.fechaInicio && le.fechaFin) {
+      fechas = 'Del ' + fechaCorta(le.fechaInicio) + ' al ' + fechaCorta(le.fechaFin);
+    } else if (le.fechaFin) {
+      fechas = 'Acabado el ' + fechaCorta(le.fechaFin);
+    } else if (le.fechaInicio) {
+      fechas = 'Empezado el ' + fechaCorta(le.fechaInicio);
+    }
+    return '<li>' + escaparHtml(fechas) +
+      (le.formato ? ' · ' + escaparHtml(le.formato) : '') + '</li>';
+  }).join('');
 }
 
 /**
@@ -1392,6 +1726,7 @@ async function prepararLectura(clave) {
   $('lectura-form').hidden = true;
   $('btn-empezar').hidden = false;
   $('btn-empezar').disabled = true;
+  pintarLecturasPrevias(null);
 
   if (!clave) {
     $('lectura-aviso').textContent = 'Guarda el libro para poder registrar una lectura.';
@@ -1405,7 +1740,9 @@ async function prepararLectura(clave) {
 
   $('lectura-aviso').textContent = 'Comprobando lecturas…';
   try {
-    var enCurso = (await leerLecturasAbiertas())[String(clave)];
+    await leerLecturas();
+    pintarLecturasPrevias(clave);
+    var enCurso = lecturasDe(clave).filter(lecturaEnCurso)[0];
     if (enCurso) {
       $('lectura-aviso').textContent = 'Ya hay una lectura en curso de este libro, empezada el ' +
         fechaCorta(enCurso.fechaInicio) + '. Puedes darla por acabada en la biblioteca.';
@@ -1457,8 +1794,8 @@ async function registrarLectura() {
   estado('Registrando lectura…');
 
   try {
-    var abiertas = await leerLecturasAbiertas();
-    if (abiertas[String(clave)]) {
+    await leerLecturas();
+    if (lecturasDe(clave).some(lecturaEnCurso)) {
       $('lectura-form').hidden = true;
       $('btn-empezar').hidden = true;
       $('lectura-aviso').textContent = 'Ya hay una lectura en curso de este libro.';
@@ -1476,8 +1813,10 @@ async function registrarLectura() {
     };
     await db.ref('lecturas/' + codlec).set(lectura);
 
-    if (fin) delete abiertas[String(clave)];
-    else abiertas[String(clave)] = lectura;
+    if (!lecturasPorLibro[String(clave)]) lecturasPorLibro[String(clave)] = [];
+    lecturasPorLibro[String(clave)].push(lectura);
+    ordenarLecturas(lecturasPorLibro[String(clave)]);
+    pintarLecturasPrevias(clave);
 
     $('lectura-form').hidden = true;
     $('btn-empezar').hidden = true;
@@ -1860,6 +2199,16 @@ $('btn-cancelar-foto').addEventListener('click', function () {
 });
 $('btn-guardar').addEventListener('click', guardar);
 
+// Con varias fichas iguales, elegir una equivale a haberla encontrado: se
+// puede completar esa y registrar la lectura sin crear otro libro.
+$('existente-lista').addEventListener('change', function () {
+  if (!ultimoLibro) return;
+  var clave = this.value;
+  ultimoLibro.existente = clave ? { clave: clave, porTitulo: true } : null;
+  $('btn-guardar').textContent = clave ? 'Añadir el ISBN a esa ficha' : 'Guardar en Firebase';
+  prepararLectura(clave || '');
+});
+
 $('archivo-codigo').addEventListener('change', function (e) {
   var archivo = e.target.files[0];
   e.target.value = '';
@@ -1868,6 +2217,14 @@ $('archivo-codigo').addEventListener('change', function (e) {
 
 $('btn-empezar').addEventListener('click', empezarLectura);
 $('btn-registrar-lectura').addEventListener('click', registrarLectura);
+$('btn-previas').addEventListener('click', function (e) {
+  e.preventDefault();
+  var lista = $('lista-previas');
+  lista.hidden = !lista.hidden;
+  this.textContent = lista.hidden
+    ? 'Ver lecturas previas (' + lista.children.length + ')'
+    : 'Ocultar lecturas previas';
+});
 $('btn-cancelar-lectura').addEventListener('click', function () {
   $('lectura-form').hidden = true;
   $('btn-empezar').hidden = false;
