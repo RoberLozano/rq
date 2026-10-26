@@ -132,6 +132,19 @@ function nombreAutor(coda) {
   return a.autor || [a.nombre, a.apellidos].filter(Boolean).join(' ') || '(sin autor)';
 }
 
+/** Enlace a la ficha del libro. El texto se escapa aquí. */
+function enlaceLibro(clave, texto) {
+  return '<a href="ficha.html?libro=' + encodeURIComponent(clave) + '">' +
+    esc(texto) + '</a>';
+}
+
+/** Enlace a la ficha del autor; sin autor, solo el texto. */
+function enlaceAutor(coda, texto) {
+  if (coda === null || coda === undefined || coda === '') return esc(texto);
+  return '<a href="ficha.html?autor=' + encodeURIComponent(coda) + '">' +
+    esc(texto) + '</a>';
+}
+
 function vecesDe(libro) {
   var f = POR_LIBRO[libro.clave];
   return f ? f.veces : 0;
@@ -375,6 +388,11 @@ function ordenar(filas, columnas, orden) {
 }
 
 function pintarTabla(id, columnas, filas, orden, conOrden, atributos) {
+  var tabla = $(id);
+  // Si el HTML de la caché es más antiguo que este script, falta alguna tabla:
+  // se ignora en vez de romper toda la página.
+  if (!tabla) return;
+
   var cabecera = columnas.map(function (c) {
     var clases = [];
     if (c.num) clases.push('num');
@@ -399,7 +417,7 @@ function pintarTabla(id, columnas, filas, orden, conOrden, atributos) {
         if (c.num) clases.push('num');
         if (c.clase) clases.push(c.clase);
         return '<td' + (clases.length ? ' class="' + clases.join(' ') + '"' : '') + '>' +
-          esc(c.texto(f)) + '</td>';
+          (c.html ? c.html(f) : esc(c.texto(f))) + '</td>';
       }).join('');
       return '<tr' + attrs + '>' + celdas + '</tr>';
     }).join('');
@@ -409,7 +427,10 @@ function pintarTabla(id, columnas, filas, orden, conOrden, atributos) {
 }
 
 function activarOrden(id, columnas, orden, repintar) {
-  $(id).addEventListener('click', function (e) {
+  var tabla = $(id);
+  if (!tabla) return;
+
+  tabla.addEventListener('click', function (e) {
     var th = e.target.closest('th[data-col]');
     if (!th) return;
     var col = th.getAttribute('data-col');
@@ -501,8 +522,8 @@ function pintarNota() {
 
   pintarTabla('tabla-nota', [
     { titulo: 'Nota', num: true, texto: function (l) { return numero(l.nota); } },
-    { titulo: 'Título', texto: function (l) { return l.titulo || '(sin título)'; } },
-    { titulo: 'Autor', texto: function (l) { return nombreAutor(l.autor); } },
+    { titulo: 'Título', texto: function (l) { return l.titulo || '(sin título)'; }, html: function (l) { return enlaceLibro(l.clave, l.titulo || '(sin título)'); } },
+    { titulo: 'Autor', texto: function (l) { return nombreAutor(l.autor); }, html: function (l) { return enlaceAutor(l.autor, nombreAutor(l.autor)); } },
     { titulo: 'Págs.', num: true, clase: 'oculto-movil', texto: function (l) { return fmt(l.npaginas); } },
     { titulo: 'Veces', num: true, clase: 'oculto-movil', texto: function (l) { return String(vecesDe(l)); } },
     { titulo: 'Última', texto: function (l) { return fecha(ultimaDe(l)) || '—'; } }
@@ -534,8 +555,8 @@ function pintarPaginas() {
 
   pintarTabla('tabla-paginas', [
     { titulo: 'Págs.', num: true, texto: function (l) { return fmt(l.npaginas); } },
-    { titulo: 'Título', texto: function (l) { return l.titulo || '(sin título)'; } },
-    { titulo: 'Autor', texto: function (l) { return nombreAutor(l.autor); } },
+    { titulo: 'Título', texto: function (l) { return l.titulo || '(sin título)'; }, html: function (l) { return enlaceLibro(l.clave, l.titulo || '(sin título)'); } },
+    { titulo: 'Autor', texto: function (l) { return nombreAutor(l.autor); }, html: function (l) { return enlaceAutor(l.autor, nombreAutor(l.autor)); } },
     { titulo: 'Nota', num: true, texto: function (l) { return l.nota ? numero(l.nota) : '—'; } },
     { titulo: 'Veces', num: true, clase: 'oculto-movil', texto: function (l) { return String(vecesDe(l)); } }
   ], libros, null, false);
@@ -562,12 +583,20 @@ function pintarLecturas() {
       titulo: 'Título', texto: function (le) {
         var l = INDICE[String(le.libro)];
         return l ? (l.titulo || '(sin título)') : '(libro borrado)';
+      },
+      html: function (le) {
+        var l = INDICE[String(le.libro)];
+        return l ? enlaceLibro(l.clave, l.titulo || '(sin título)') : '(libro borrado)';
       }
     },
     {
       titulo: 'Autor', texto: function (le) {
         var l = INDICE[String(le.libro)];
         return l ? nombreAutor(l.autor) : '—';
+      },
+      html: function (le) {
+        var l = INDICE[String(le.libro)];
+        return l ? enlaceAutor(l.autor, nombreAutor(l.autor)) : '—';
       }
     },
     { titulo: 'Formato', texto: function (le) { return le.formato || '—'; } },
@@ -621,10 +650,13 @@ function pintarCurso() {
       ? ' · ' + fmt(dias) + (dias === 1 ? ' día' : ' días')
       : '';
 
+    var titulo = l.titulo || '(libro borrado)';
+    var tituloHtml = INDICE[String(le.libro)] ? enlaceLibro(l.clave, titulo) : esc(titulo);
+
     return '<article class="en-curso" data-codlec="' + le.codlec + '">' +
       '<div>' +
-        '<strong>' + esc(l.titulo || '(libro borrado)') + '</strong>' +
-        '<span class="nota">' + esc(nombreAutor(l.autor)) + '</span>' +
+        '<strong>' + tituloHtml + '</strong>' +
+        '<span class="nota">' + enlaceAutor(l.autor, nombreAutor(l.autor)) + '</span>' +
         '<span class="nota">Empezado el ' + fecha(le.fechaInicio) + desde +
           ' · ' + esc(le.formato || 'sin formato') + '</span>' +
       '</div>' +
@@ -723,12 +755,13 @@ function pintarAutores() {
   filas = ordenar(filas, COLS_AUTORES, ORDEN_AUTORES);
 
   pintarTabla('tabla-autores', COLS_AUTORES, filas, ORDEN_AUTORES, true, function (f) {
-    return ' data-autor="' + esc(f.coda) + '" title="Filtrar por ' + esc(f.autor) + '"';
+    return ' data-autor="' + esc(f.coda) + '" title="Filtrar por ' + esc(f.autor) +
+      ' (el nombre abre su ficha)"';
   });
 }
 
 var COLS_AUTORES = [
-  { titulo: 'Autor', col: 'autor', texto: function (f) { return f.autor; } },
+  { titulo: 'Autor', col: 'autor', texto: function (f) { return f.autor; }, html: function (f) { return enlaceAutor(f.coda, f.autor); } },
   { titulo: 'Obras', col: 'obras', num: true, dir: -1, texto: function (f) { return fmt(f.obras); }, orden: function (f) { return f.obras; } },
   { titulo: 'Lecturas', col: 'lecturas', num: true, dir: -1, texto: function (f) { return fmt(f.lecturas); }, orden: function (f) { return f.lecturas; } },
   { titulo: 'Páginas', col: 'paginas', num: true, dir: -1, clase: 'oculto-movil', texto: function (f) { return fmt(f.paginas); }, orden: function (f) { return f.paginas; } },
@@ -750,8 +783,8 @@ function pintarReleidos() {
 
   pintarTabla('tabla-releidos', [
     { titulo: 'Veces', num: true, texto: function (l) { return String(vecesDe(l)); } },
-    { titulo: 'Título', texto: function (l) { return l.titulo || '(sin título)'; } },
-    { titulo: 'Autor', texto: function (l) { return nombreAutor(l.autor); } },
+    { titulo: 'Título', texto: function (l) { return l.titulo || '(sin título)'; }, html: function (l) { return enlaceLibro(l.clave, l.titulo || '(sin título)'); } },
+    { titulo: 'Autor', texto: function (l) { return nombreAutor(l.autor); }, html: function (l) { return enlaceAutor(l.autor, nombreAutor(l.autor)); } },
     { titulo: 'Última', texto: function (l) { return fecha(ultimaDe(l)) || '—'; } }
   ], filas, null, false);
 }
@@ -875,8 +908,8 @@ function pintarAnios() {
 /* ---------- todos los libros ---------- */
 
 var COLS_LIBROS = [
-  { titulo: 'Título', col: 'titulo', texto: function (l) { return l.titulo || '(sin título)'; } },
-  { titulo: 'Autor', col: 'autor', texto: function (l) { return nombreAutor(l.autor); } },
+  { titulo: 'Título', col: 'titulo', texto: function (l) { return l.titulo || '(sin título)'; }, html: function (l) { return enlaceLibro(l.clave, l.titulo || '(sin título)'); } },
+  { titulo: 'Autor', col: 'autor', texto: function (l) { return nombreAutor(l.autor); }, html: function (l) { return enlaceAutor(l.autor, nombreAutor(l.autor)); } },
   { titulo: 'Nota', col: 'nota', num: true, dir: -1, texto: function (l) { return l.nota ? numero(l.nota) : '—'; }, orden: function (l) { return Number(l.nota) || -1; } },
   { titulo: 'Págs.', col: 'npaginas', num: true, dir: -1, clase: 'oculto-movil', texto: function (l) { return fmt(l.npaginas); }, orden: function (l) { return num(l.npaginas); } },
   { titulo: 'Idioma', col: 'idioma', clase: 'oculto-movil', texto: function (l) { return l.idioma || '—'; } },
@@ -895,10 +928,23 @@ function pintarLibros() {
 
   filas = ordenar(filas, COLS_LIBROS, ORDEN_LIBROS);
 
-  $('libros-cuenta').textContent = 'Mostrando ' + fmt(filas.length) + ' de ' +
+  // La misma tabla está en «Resumen» (la pestaña de entrada) y en «Libros»:
+  // las dos se pintan igual, con el mismo orden y la misma búsqueda.
+  var cuenta = 'Mostrando ' + fmt(filas.length) + ' de ' +
     fmt(LIBROS_FILTRADOS.length) + ' libros';
+  if ($('libros-cuenta')) $('libros-cuenta').textContent = cuenta;
+  if ($('libros-cuenta-resumen')) $('libros-cuenta-resumen').textContent = cuenta;
 
   pintarTabla('tabla-libros', COLS_LIBROS, filas, ORDEN_LIBROS, true);
+  pintarTabla('tabla-libros-resumen', COLS_LIBROS, filas, ORDEN_LIBROS, true);
+}
+
+/** La búsqueda es una sola: se copia en la otra caja al escribir en una. */
+function sincronizarBusqueda(origen) {
+  ['buscar', 'buscar-resumen'].forEach(function (id) {
+    var campo = $(id);
+    if (campo && id !== origen) campo.value = BUSQUEDA;
+  });
 }
 
 /* ---------- revisar ---------- */
@@ -1399,6 +1445,8 @@ function prepararControles() {
   });
 
   $('tabla-autores').addEventListener('click', function (e) {
+    // El nombre del autor es un enlace a su ficha; la fila sigue filtrando.
+    if (e.target.closest('a')) return;
     var tr = e.target.closest('tr[data-autor]');
     if (!tr) return;
     if (e.target.closest('th')) return;
@@ -1408,9 +1456,14 @@ function prepararControles() {
     aplicar();
   });
 
-  $('buscar').addEventListener('input', function () {
-    BUSQUEDA = this.value;
-    pintarLibros();
+  ['buscar', 'buscar-resumen'].forEach(function (id) {
+    var campo = $(id);
+    if (!campo) return;
+    campo.addEventListener('input', function () {
+      BUSQUEDA = this.value;
+      sincronizarBusqueda(id);
+      pintarLibros();
+    });
   });
 
   $('btn-limpiar').addEventListener('click', function () {
@@ -1418,12 +1471,13 @@ function prepararControles() {
       FILTROS[k] = (k === 'nota' || k === 'paginasMin') ? 0 : '';
     });
     BUSQUEDA = '';
-    $('buscar').value = '';
+    sincronizarBusqueda(null);
     sincronizarControles();
     aplicar();
   });
 
   activarOrden('tabla-libros', COLS_LIBROS, ORDEN_LIBROS, pintarLibros);
+  activarOrden('tabla-libros-resumen', COLS_LIBROS, ORDEN_LIBROS, pintarLibros);
   activarOrden('tabla-autores', COLS_AUTORES, ORDEN_AUTORES, pintarAutores);
 }
 

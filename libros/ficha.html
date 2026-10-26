@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ficha · Biblioteca</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --fondo: #ffffff;
+      --superficie: #f7f7f8;
+      --borde: #dcdce0;
+      --texto: #17171a;
+      --tenue: #5f5f66;
+      --acento: #26262b;
+      --sobre-acento: #ffffff;
+      --suave: rgba(0, 0, 0, .05);
+      --error: #b3261e;
+      --ok: #146c2e;
+    }
+
+    /* Paleta casi negra, gris y blanco: sin azul. */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --fondo: #050506;
+        --superficie: #0d0d0f;
+        --borde: #242428;
+        --texto: #f0f0f2;
+        --tenue: #96969e;
+        --acento: #ededf0;
+        --sobre-acento: #08080a;
+        --suave: rgba(255, 255, 255, .06);
+        --error: #ff9d97;
+        --ok: #8fd7a0;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    [hidden] { display: none !important; }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      line-height: 1.45;
+      background: var(--fondo);
+      color: var(--texto);
+    }
+
+    main { max-width: 760px; margin: 0 auto; padding: 1rem; }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: .5rem;
+    }
+
+    h1 { font-size: 1.35rem; margin: .1rem 0 .15rem; letter-spacing: -.01em; }
+    h2 { font-size: 1.05rem; margin: 0 0 .5rem; }
+
+    p { margin: .4rem 0; }
+
+    a {
+      color: inherit;
+      text-decoration: underline;
+      text-decoration-color: var(--tenue);
+      text-underline-offset: 2px;
+    }
+
+    a:hover { text-decoration-color: currentColor; }
+
+    .volver {
+      display: inline-block;
+      font-size: .85rem;
+      color: var(--tenue);
+      text-decoration: none;
+    }
+
+    .volver:hover { color: var(--texto); }
+
+    .enlace-boton {
+      display: inline-block;
+      padding: .45rem .8rem;
+      border-radius: .45rem;
+      background: var(--acento);
+      color: var(--sobre-acento);
+      text-decoration: none;
+      font-size: .9rem;
+      font-weight: 500;
+    }
+
+    .nota { font-size: .82rem; color: var(--tenue); }
+
+    /* Portada, si la ficha la tiene: solo se enseña, el campo está en el formulario. */
+    #portada-caja { margin: .7rem 0 0; }
+    #portada {
+      display: block;
+      max-height: 12rem;
+      max-width: 100%;
+      border: 1px solid var(--borde);
+      border-radius: .4rem;
+    }
+
+    #estado { min-height: 1.5em; }
+    #estado.error, .error { color: var(--error); }
+    .ok { color: var(--ok); }
+
+    /* ---------- bloques plegables ---------- */
+
+    .bloque {
+      border: 1px solid var(--borde);
+      border-radius: .6rem;
+      background: var(--superficie);
+      margin: 0 0 1rem;
+    }
+
+    .bloque > .contenido { padding: 1rem; }
+
+    details.bloque > summary {
+      display: flex;
+      align-items: baseline;
+      gap: .6rem;
+      padding: .75rem 1rem;
+      cursor: pointer;
+      list-style: none;
+      user-select: none;
+    }
+
+    details.bloque > summary::-webkit-details-marker { display: none; }
+
+    details.bloque > summary .titulo { font-weight: 600; }
+
+    details.bloque > summary .cuenta {
+      margin-left: auto;
+      font-size: .8rem;
+      font-weight: 400;
+      color: var(--tenue);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    details.bloque > summary::after {
+      content: "+";
+      color: var(--tenue);
+      font-size: .95rem;
+      line-height: 1;
+    }
+
+    details.bloque[open] > summary::after { content: "−"; }
+    details.bloque[open] > summary { border-bottom: 1px solid var(--borde); }
+    details.bloque > summary:hover::after { color: var(--texto); }
+
+    /* ---------- formularios ---------- */
+
+    fieldset {
+      border: 1px solid var(--borde);
+      border-radius: .6rem;
+      background: var(--superficie);
+      padding: 1rem;
+      margin: 0 0 1rem;
+    }
+
+    legend {
+      padding: 0 .4rem;
+      font-size: .78rem;
+      color: var(--tenue);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    .rejilla {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: .7rem;
+    }
+
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: .25rem;
+      font-size: .8rem;
+      color: var(--tenue);
+    }
+
+    label.ancho { grid-column: 1 / -1; }
+
+    input, select, textarea {
+      padding: .45rem .5rem;
+      font: inherit;
+      font-size: .9rem;
+      border: 1px solid var(--borde);
+      border-radius: .4rem;
+      background: var(--fondo);
+      color: var(--texto);
+      min-width: 0;
+      width: 100%;
+    }
+
+    textarea { resize: vertical; line-height: 1.4; }
+
+    /* La lista desplegable la pinta el sistema: sin colores propios se queda
+       en blanco con el texto del tema oscuro (o al revés). */
+    select option {
+      background: var(--fondo);
+      color: var(--texto);
+    }
+
+    ::placeholder { color: var(--tenue); }
+
+    .bloque-texto { margin-top: .7rem; }
+
+    .acciones {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: .7rem;
+      margin-top: .9rem;
+    }
+
+    button {
+      font: inherit;
+      cursor: pointer;
+    }
+
+    button[type="submit"] {
+      padding: .5rem .9rem;
+      border: 1px solid var(--acento);
+      border-radius: .45rem;
+      background: var(--acento);
+      color: var(--sobre-acento);
+      font-size: .9rem;
+      font-weight: 500;
+    }
+
+    button:disabled { opacity: .5; cursor: default; }
+
+    /* ---------- tablas ---------- */
+
+    .scroll { max-height: min(26rem, 60vh); overflow: auto; }
+
+    table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+
+    th, td {
+      text-align: left;
+      padding: .4rem .5rem;
+      border-bottom: 1px solid var(--borde);
+      vertical-align: top;
+    }
+
+    thead th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: var(--superficie);
+      color: var(--tenue);
+      font-size: .78rem;
+      font-weight: 600;
+    }
+
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tbody tr:hover { background: var(--suave); }
+
+    /* ---------- móvil ---------- */
+
+    @media (max-width: 640px) {
+      main { padding: .75rem; }
+      h1 { font-size: 1.15rem; }
+      fieldset, .bloque > .contenido { padding: .8rem; }
+      details.bloque > summary { padding: .65rem .8rem; }
+      .rejilla { grid-template-columns: 1fr 1fr; }
+      .rejilla label.ancho { grid-column: 1 / -1; }
+      table { font-size: .8rem; }
+      th, td { padding: .32rem .35rem; }
+      .oculto-movil { display: none; }
+    }
+
+    @media (max-width: 400px) {
+      .rejilla { grid-template-columns: 1fr; }
+      table { font-size: .78rem; }
+      th, td { padding: .3rem .25rem; }
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <header>
+      <div>
+        <a class="volver" href="consulta.html">← Biblioteca</a>
+        <h1 id="titulo">Ficha</h1>
+        <p class="nota" id="subtitulo"></p>
+      </div>
+      <a class="enlace-boton" href="lector.html">Añadir libro</a>
+    </header>
+
+    <p id="portada-caja" hidden><img id="portada" alt="Portada del libro"></p>
+
+    <p id="estado" role="status" aria-live="polite">Cargando…</p>
+
+    <div id="contenido" hidden>
+      <form id="form-libro" hidden novalidate>
+        <fieldset>
+          <legend>Datos del libro</legend>
+          <div class="rejilla">
+            <label class="ancho">Título <input type="text" id="l-titulo" required></label>
+            <label>Autor <select id="l-autor"></select></label>
+            <label>Idioma <input type="text" id="l-idioma" list="lista-idiomas"></label>
+            <label>Año de la obra
+              <input type="number" id="l-anio" min="1" max="2100" step="1">
+            </label>
+            <label>Año de esta edición
+              <input type="number" id="l-anioedicion" min="1" max="2100" step="1">
+            </label>
+            <label>Páginas <input type="number" id="l-npaginas" min="1" step="1"></label>
+            <label>Nota (0–10)
+              <input type="number" id="l-nota" min="0" max="10" step="0.1">
+            </label>
+            <label>Género <input type="text" id="l-genero" list="lista-generos"></label>
+            <label>ISBN <input type="text" id="l-isbn" inputmode="numeric"></label>
+            <label class="ancho">Portada (URL) <input type="url" id="l-portada"></label>
+          </div>
+          <label class="bloque-texto">Comentario
+            <textarea id="l-comentario" rows="3"></textarea>
+          </label>
+          <label class="bloque-texto">Sinopsis
+            <textarea id="l-sinopsis" rows="10"></textarea>
+          </label>
+          <div class="acciones">
+            <button type="submit">Guardar cambios</button>
+            <span class="nota" id="libro-aviso"></span>
+          </div>
+        </fieldset>
+      </form>
+
+      <details class="bloque" id="bloque-lecturas" open hidden>
+        <summary>
+          <span class="titulo">Lecturas</span>
+          <span class="cuenta" id="lecturas-cuenta"></span>
+        </summary>
+        <div class="contenido">
+          <div class="scroll">
+            <table id="tabla-lecturas"></table>
+          </div>
+        </div>
+      </details>
+
+      <form id="form-autor" hidden novalidate>
+        <fieldset>
+          <legend>Datos del autor</legend>
+          <div class="rejilla">
+            <label>Nombre <input type="text" id="a-nombre"></label>
+            <label>Apellidos <input type="text" id="a-apellidos"></label>
+            <label>Nombre en las listas <input type="text" id="a-autor"></label>
+            <label>Nacionalidad <input type="text" id="a-nacionalidad" list="lista-paises"></label>
+            <label>Año de nacimiento
+              <input type="number" id="a-nacimiento" min="1" max="2100" step="1">
+            </label>
+            <label>Año de muerte
+              <input type="number" id="a-muerte" min="1" max="2100" step="1">
+            </label>
+            <label>Sexo <select id="a-sexo"></select></label>
+          </div>
+          <div class="acciones">
+            <button type="submit">Guardar cambios</button>
+            <span class="nota" id="autor-aviso"></span>
+          </div>
+        </fieldset>
+      </form>
+
+      <details class="bloque" id="bloque-obras" open hidden>
+        <summary>
+          <span class="titulo">Obras</span>
+          <span class="cuenta" id="obras-cuenta"></span>
+        </summary>
+        <div class="contenido">
+          <div class="scroll">
+            <table id="tabla-obras"></table>
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <datalist id="lista-idiomas"></datalist>
+    <datalist id="lista-generos"></datalist>
+    <datalist id="lista-paises"></datalist>
+  </main>
+
+  <script src="firebase-config.js"></script>
+  <script src="ficha.js"></script>
+</body>
+
+</html>

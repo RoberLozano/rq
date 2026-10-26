@@ -14,9 +14,11 @@ española y Wikidata, y guarda en Firebase Realtime Database.
 
 `consulta.html` es el otro lado: un panel con las métricas del catálogo
 (libros leídos, lecturas, páginas, nota media, autores, géneros, idiomas…) y filtros que
-recalculan todo al vuelo. Escribe solo en dos sitios: «Revisar», donde busca fichas de autor
-que parezcan la misma persona y permite fusionarlas, y «En curso», donde se da por acabada una
-lectura con la fecha que elijas.
+recalculan todo al vuelo. La tabla de **Todos los libros**, la que tiene el buscador por título
+y autor, es el primer bloque de «Libros» y se repite en «Resumen», justo debajo de las
+tarjetas: la búsqueda y el orden son los mismos en las dos. Escribe solo en dos sitios:
+«Revisar», donde busca fichas de autor que parezcan la misma persona y permite fusionarlas, y
+«En curso», donde se da por acabada una lectura con la fecha que elijas.
 
 Al guardar un libro aparece **Empezar a leer**: crea una lectura con la fecha de hoy (o la que
 pongas, si lo empezaste antes) y, si quieres, la fecha en que lo acabaste. Las lecturas
@@ -36,6 +38,11 @@ Cuando el libro ya se ha leído, junto a «Ver lecturas en curso» aparece **Ver
 lectura: 17/10/2023»). Dos ediciones de la misma obra en idiomas distintos —«El Hobbit» en
 castellano y «The Hobbit» en inglés— son fichas diferentes y no se mezclan.
 
+En `consulta.html`, cualquier título o nombre de autor es un enlace: abre `ficha.html`, donde se
+ven y se corrigen los datos del libro o del autor. La ficha del libro tiene sus lecturas en un
+desplegable y, debajo, la del autor con sus obras plegadas; la ficha del autor muestra sus obras
+desplegadas y cada una lleva a su propio libro. Solo se guardan los campos que cambies.
+
 ## Uso
 
 ```powershell
@@ -44,6 +51,9 @@ python -m http.server 8765
 
 Abrir <http://localhost:8765/lector.html>. La cámara y el OCR requieren `localhost` o HTTPS;
 con `file://` no funcionan.
+
+El panel está en <http://localhost:8765/consulta.html>; una ficha suelta se abre con
+`ficha.html?libro=1` o `ficha.html?autor=7`.
 
 La página ya está conectada al proyecto `libros-rls777` (el mismo de `libros.js`), que
 contiene el catálogo importado. Para cerrar el acceso público, habilita primero el proveedor
@@ -56,6 +66,7 @@ están en [`importar/README.md`](importar/README.md).
 |---|---|
 | `lector.html`, `lector.js` | Página actual |
 | `consulta.html`, `consulta.js` | Panel de métricas y consultas |
+| `ficha.html`, `ficha.js` | Ficha editable de cada libro y cada autor |
 | `database.rules.json` | Reglas de Realtime Database |
 | `importar/exportar-mdb.ps1` | Convierte `Libros.mdb` en JSON para importar |
 | `index.html` | Demo anterior (Quagga + Firebase `fireui-777`) |

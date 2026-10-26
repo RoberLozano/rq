@@ -16,7 +16,17 @@ the browser console.
   `codlec` does not encode re-reads) and recomputes every panel live from one shared filter
   state (nota/páginas sliders, clickable bars for
   genre/language/sex/nationality/format/year, sortable tables). Seven tabs; every section is a
-  native `<details>` and the filters start collapsed on mobile. All UI text is Spanish.
+  native `<details>` and the filters start collapsed on mobile. All UI text is Spanish. Every
+  book title and author name is a link to `ficha.html`.
+- The searchable table («Todos los libros», `#tabla-libros`) is the first block of the Libros
+  tab and is repeated right after the cards in Resumen (`#tabla-libros-resumen`), because
+  Resumen is the landing tab. `pintarLibros()` paints both copies from `LIBROS_FILTRADOS` and
+  `ORDEN_LIBROS`; the two search boxes share `BUSQUEDA` through `sincronizarBusqueda()`. When
+  touching one of them, change both ids and both `activarOrden()` calls.
+- `ficha.html` + `ficha.js` — sheet for one book (`?libro=<clave>`) or one author
+  (`?autor=<coda>`). Edits the book's or author's own fields and shows, collapsed, the book's
+  readings or the author's works. This is the third write surface (see «Ficha de libro y
+  autor»).
 - `index.html` — legacy demo, all inline: Quagga + Firebase project `fireui-777` + Google
   Books. Its `isbn()` throws when clipboard text has no digits. Don't extend it; work in
   `lector.*`.
@@ -32,7 +42,8 @@ the browser console.
   `lecturas(codlec, fechaInicio, fechaFin, formato, libro→libros key, ppm)`, plus an unused
   `Todos` list. **`libros` has no ISBN column**, which is why the page exists.
 - `libros-rls777` is live again (`https://libros-rls777.firebaseio.com`) and is the project
-  wired in `firebase-config.js`; its data is already imported (268/113/316). The old
+  wired in `firebase-config.js`; the `.mdb` import is 268/113/316 and the live database now has
+  269 books, 114 authors and 317 readings (the extras were added from the page). The old
   `fireui-777` config in `index.html` is still deactivated (HTTP 423) — leave it alone.
 - Public read/write is currently open. To close it, enable Authentication → Anonymous
   **before** publishing `database.rules.json`, otherwise every save fails.
@@ -150,6 +161,32 @@ the browser console.
 - The «En curso» list deliberately ignores the filters: a filter hiding a half-read book
   would make it impossible to finish from the panel.
 
+## Ficha de libro y autor
+
+- `consulta.html` links every book title (`enlaceLibro`) and author name (`enlaceAutor`) to
+  `ficha.html?libro=<clave>` / `ficha.html?autor=<coda>`. `pintarTabla()` accepts an optional
+  `html` per column; `texto` is still what sorting uses, so never leave it out. In
+  `#tabla-autores`, clicks on a link navigate; clicks elsewhere in the row still toggle the
+  author filter.
+- `?libro=` fills the book form and shows its «Lecturas» `<details>` (newest first, an in-course
+  reading on top and marked «en curso»; read-only here) plus, below, the book's author form with
+  its «Obras» `<details>` collapsed. `?autor=` shows only the author form with «Obras» open.
+  `← Biblioteca` uses `document.referrer` when it came from `consulta.html`, so the tab and
+  filters survive.
+- Both forms save with `update()` and only send changed fields; `guardarLibro()` also writes
+  `actualizado` with `ServerValue.TIMESTAMP`. `/autores` rows have no `actualizado` field, so
+  `guardarAutor()` must not add one. An empty numeric field is written as `null`; empty strings
+  stay `''` (as `lector.js` does).
+- Validation is client-side: title non-empty, `nota` 0–10, `año`/`añoEdicion` integers 1–2100,
+  `npaginas` a positive integer, `muerte` not before `nacimiento`. Both forms are `novalidate`,
+  so only the fields that changed are validated: the one imported book with `año: 20120` can
+  still have its synopsis edited. `revisarDatosLibro()` / `revisarDatosAutor()` show a
+  non-blocking warning for such legacy values.
+- After saving, the in-memory row is refreshed and the header, readings, works and author select
+  are repainted. If the book's author changes, the author section switches to the new person; if
+  the author's display name changes, the book's author `<select>` is rebuilt.
+- The cover is only displayed (`#portada-caja`); its URL is edited in the book form.
+
 ## Autores
 
 - `asegurarAutor()` only creates an author when the book is saved and the person is not
@@ -216,6 +253,12 @@ the browser console.
 
 ## Gotchas
 
+- `python -m http.server` sends `Last-Modified` and no `Cache-Control`, so the browser caches
+  the HTML heuristically: after editing a page, a plain reload may keep the old markup and run
+  it with the new `.js`, and the missing ids throw (`Cannot read properties of null (reading
+  'addEventListener')`, shown as «No se pudo cargar la biblioteca»). Use `Ctrl+F5`. As a safety
+  net, `consulta.js` returns early in `pintarTabla()` / `activarOrden()` and skips missing
+  search boxes, so an outdated HTML still loads (just without the newest blocks).
 - Camera (`getUserMedia`) and clipboard need a secure context. `file://` gives no camera and
   throws on clipboard access. Serve with `python -m http.server 8765` and open
   `http://localhost:8765/lector.html`.

@@ -605,6 +605,22 @@
 
         <details class="bloque" open>
           <summary>
+            <span class="titulo">Todos los libros</span>
+            <span class="cuenta" id="libros-cuenta-resumen"></span>
+          </summary>
+          <div class="contenido">
+            <div class="buscador">
+              <input type="search" id="buscar-resumen" placeholder="Buscar por título o autor"
+                aria-label="Buscar por título o autor">
+            </div>
+            <div class="scroll">
+              <table id="tabla-libros-resumen"></table>
+            </div>
+          </div>
+        </details>
+
+        <details class="bloque" open>
+          <summary>
             <span class="titulo">Libros más releídos</span>
             <span class="cuenta" id="releidos-cuenta"></span>
           </summary>
@@ -617,6 +633,22 @@
       </section>
 
       <section id="panel-libros" aria-label="Libros" hidden>
+        <details class="bloque" open>
+          <summary>
+            <span class="titulo">Todos los libros</span>
+            <span class="cuenta" id="libros-cuenta"></span>
+          </summary>
+          <div class="contenido">
+            <div class="buscador">
+              <input type="search" id="buscar" placeholder="Buscar por título o autor"
+                aria-label="Buscar por título o autor">
+            </div>
+            <div class="scroll">
+              <table id="tabla-libros"></table>
+            </div>
+          </div>
+        </details>
+
         <details class="bloque" open>
           <summary>
             <span class="titulo">Libros por nota</span>
@@ -649,22 +681,6 @@
             <div class="chips" id="tamanos"></div>
             <div class="scroll">
               <table id="tabla-paginas"></table>
-            </div>
-          </div>
-        </details>
-
-        <details class="bloque" open>
-          <summary>
-            <span class="titulo">Todos los libros</span>
-            <span class="cuenta" id="libros-cuenta"></span>
-          </summary>
-          <div class="contenido">
-            <div class="buscador">
-              <input type="search" id="buscar" placeholder="Buscar por título o autor"
-                aria-label="Buscar por título o autor">
-            </div>
-            <div class="scroll">
-              <table id="tabla-libros"></table>
             </div>
           </div>
         </details>
