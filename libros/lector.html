@@ -63,7 +63,7 @@
 
     .buscador { display: flex; gap: .5rem; margin-top: .8rem; }
 
-    input[type="text"], input[type="date"], select {
+    input[type="text"], input[type="number"], input[type="date"], select, textarea {
       padding: .6rem;
       font-size: 1rem;
       border: 1px solid var(--borde);
@@ -72,6 +72,8 @@
       color: var(--texto);
       min-width: 0;
     }
+
+    textarea { resize: vertical; line-height: 1.45; font-family: inherit; }
 
     /* La lista desplegable la pinta el sistema: sin colores propios se queda
        en blanco con el texto del tema oscuro (o al revés). */
@@ -181,12 +183,28 @@
     dt { font-weight: 600; }
     dd { margin: 0; }
 
-    /* La sinopsis se muestra completa: pre-line respeta los saltos de párrafo. */
-    #sinopsis {
-      clear: both;
-      margin: .8rem 0 0;
-      white-space: pre-line;
+    /* Tarjeta editable: los datos se revisan y corrigen antes de guardar. */
+    #form-ficha { clear: both; margin-top: .8rem; }
+
+    .rejilla {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: .7rem;
     }
+
+    #form-ficha label {
+      display: flex;
+      flex-direction: column;
+      gap: .25rem;
+      font-size: .8rem;
+      color: var(--tenue);
+    }
+
+    #form-ficha label.ancho { grid-column: 1 / -1; margin-top: .7rem; }
+
+    #form-ficha input, #form-ficha textarea { width: 100%; }
+
+    #paginas-nota { font-size: .75rem; }
 
     #lectura-caja {
       border: 1px solid var(--borde);
@@ -250,8 +268,35 @@
       <img id="portada" alt="" hidden>
       <h2 id="titulo"></h2>
       <p id="autores"></p>
+      <p class="nota" id="wikipedia-caja" hidden>
+        <a id="wikipedia-enlace" href="#" target="_blank" rel="noopener"></a>
+      </p>
+
+      <form id="form-ficha" novalidate>
+        <p class="nota">Puedes corregir estos datos antes de guardar.</p>
+        <div class="rejilla">
+          <label>Título <input type="text" id="f-titulo"></label>
+          <label>Autor <input type="text" id="f-autor"></label>
+          <label>Año de la obra
+            <input type="number" id="f-anio" min="1" max="2100" step="1">
+          </label>
+          <label>Año de la edición
+            <input type="number" id="f-anioedicion" min="1" max="2100" step="1">
+          </label>
+          <label>Páginas
+            <input type="number" id="f-npaginas" min="1" step="1">
+            <span class="nota" id="paginas-nota" hidden></span>
+          </label>
+          <label>Idioma <input type="text" id="f-idioma" list="lista-idiomas"></label>
+          <label>Género <input type="text" id="f-genero" list="lista-generos"></label>
+          <label>Nota media
+            <input type="number" id="f-nota" min="0" max="10" step="0.1">
+          </label>
+        </div>
+        <label class="ancho">Sinopsis <textarea id="f-sinopsis" rows="9"></textarea></label>
+      </form>
+
       <dl id="datos"></dl>
-      <p id="sinopsis" hidden></p>
 
       <div id="lectura-caja">
         <p class="nota" id="lectura-aviso">Guarda el libro para poder registrar una lectura.</p>
@@ -290,6 +335,9 @@
       <button id="btn-guardar">Guardar en Firebase</button>
     </section>
   </main>
+
+  <datalist id="lista-idiomas"></datalist>
+  <datalist id="lista-generos"></datalist>
 
   <script src="quagga.min.js"></script>
   <script src="firebase-config.js"></script>

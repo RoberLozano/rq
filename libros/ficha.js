@@ -53,6 +53,33 @@ function fecha(iso) {
   return partes[2] + '/' + partes[1] + '/' + partes[0];
 }
 
+/** Nombre legible del artículo: .../wiki/El_jugador → «El jugador». */
+function nombreArticuloWikipedia(url) {
+  var partes = String(url || '').split('/wiki/');
+  if (partes.length < 2) return '';
+  try {
+    return decodeURIComponent(partes[1]).replace(/_/g, ' ');
+  } catch (e) {
+    return partes[1].replace(/_/g, ' ');
+  }
+}
+
+function pintarWikipedia(url) {
+  var caja = $('wikipedia-caja');
+  var enlace = $('wikipedia-enlace');
+  if (!caja || !enlace) return;
+
+  if (!url) {
+    caja.hidden = true;
+    enlace.removeAttribute('href');
+    return;
+  }
+
+  enlace.href = url;
+  enlace.textContent = 'Wikipedia: ' + (nombreArticuloWikipedia(url) || 'artículo del libro');
+  caja.hidden = false;
+}
+
 function ms(iso) {
   var partes = String(iso || '').split('-');
   if (partes.length !== 3) return NaN;
@@ -530,6 +557,7 @@ function pintarCabeceraLibro() {
   if (LIBRO.idioma) partes.push(LIBRO.idioma);
   $('subtitulo').textContent = partes.join(' · ') || 'Sin más datos.';
 
+  pintarWikipedia(LIBRO.wikipedia);
   pintarPortada();
 }
 
@@ -799,6 +827,7 @@ function pintarCabeceraAutor() {
   partes.push(obras + (obras === 1 ? ' obra' : ' obras'));
 
   $('subtitulo').textContent = partes.join(' · ');
+  pintarWikipedia('');
   pintarPortada();
 }
 

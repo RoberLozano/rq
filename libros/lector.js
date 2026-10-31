@@ -75,6 +75,57 @@ function escaparHtml(texto) {
   });
 }
 
+/* ---------- campos editables de la ficha ---------- */
+
+function valorTexto(id) {
+  var el = $(id);
+  return el ? el.value.trim() : '';
+}
+
+function valorNumero(id) {
+  var texto = valorTexto(id);
+  return texto === '' ? null : Number(texto);
+}
+
+/** Enlace al artículo de la Wikipedia española. */
+function urlWikipedia(titulo) {
+  return 'https://es.wikipedia.org/wiki/' +
+    encodeURIComponent(String(titulo || '').replace(/ /g, '_'));
+}
+
+/** Nombre legible de un enlace .../wiki/El_jugador. */
+function nombreArticuloWikipedia(url) {
+  var partes = String(url || '').split('/wiki/');
+  if (partes.length < 2) return '';
+  try {
+    return decodeURIComponent(partes[1]).replace(/_/g, ' ');
+  } catch (e) {
+    return partes[1].replace(/_/g, ' ');
+  }
+}
+
+/** Comprueba un número opcional del formulario. Devuelve el error o ''. */
+function validarNumero(valor, etiqueta, minimo, maximo, entero) {
+  if (valor === null) return '';
+  if (!isFinite(valor)) return etiqueta + ' no es un número válido.';
+  if (entero && Math.floor(valor) !== valor) {
+    return etiqueta + ' tiene que ser un número entero.';
+  }
+  if (valor < minimo || valor > maximo) {
+    return etiqueta + ' tiene que estar entre ' + minimo + ' y ' + maximo + '.';
+  }
+  return '';
+}
+
+/** Valida lo que se va a guardar. Solo el título es obligatorio. */
+function validarFicha(titulo, anio, anioEdicion, npaginas, nota) {
+  if (!titulo) return 'El título no puede estar vacío.';
+  return validarNumero(anio, 'El año de la obra', 1, 2100, true) ||
+    validarNumero(anioEdicion, 'El año de la edición', 1, 2100, true) ||
+    validarNumero(npaginas, 'El número de páginas', 1, 100000, true) ||
+    validarNumero(nota, 'La nota media', 0, 10, false);
+}
+
 /**
  * Google Books devuelve la sinopsis con HTML (<p>, <b>, &amp;…). En el .mdb el
  * campo es texto plano, así que se guarda igual: sin etiquetas ni entidades.
@@ -882,10 +933,21 @@ async function anioWikidata(qid) {
  */
 async function articuloWikipedia(info, isbn) {
   var tituloObra = await tituloObraOpenLibrary(isbn);
-  var consultas = [];
+  var autor = (info.authors || [])[0] || '';
+
+  var bases = [];
   [info.title, tituloObra].forEach(function (t) {
     t = tituloBase(t);
-    if (t && consultas.indexOf(t) === -1) consultas.push(t);
+    if (t && bases.indexOf(t) === -1) bases.push(t);
+  });
+
+  // Buscar solo por el título trae la desambiguación («El jugador» → jugador
+  // de videojuegos); con el autor, el artículo de la novela queda primero.
+  var consultas = [];
+  bases.forEach(function (t) {
+    var conAutor = autor ? t + ' ' + autor : '';
+    if (conAutor && consultas.indexOf(conAutor) === -1) consultas.push(conAutor);
+    if (consultas.indexOf(t) === -1) consultas.push(t);
   });
 
   var titulos = [];
@@ -898,7 +960,6 @@ async function articuloWikipedia(info, isbn) {
   if (!titulos.length) return null;
 
   var fichas = await fichasWikipedia(titulos.slice(0, 6));
-  var autor = (info.authors || [])[0] || '';
   var respaldo = null;
   for (var k = 0; k < fichas.length; k++) {
     if (!esArticuloDeLibro(fichas[k])) continue;
@@ -929,6 +990,8 @@ async function completarFicha(info, isbn) {
   if (articulo) {
     ficha.description = articulo.extracto;
     ficha.sinopsisEnEspanol = true;
+    // El artículo existe: se guarda su enlace para la ficha.
+    ficha.wikipedia = urlWikipedia(articulo.titulo);
   } else if (texto && esEspanol(ficha.language, texto)) {
     ficha.sinopsisEnEspanol = true;
   } else {
@@ -1115,11 +1178,49 @@ async function buscar(isbn) {
   }
 }
 
+/** Sugerencias de idioma y género con lo que ya hay en el catálogo. */
+function sugerenciasFicha() {
+  var idiomas = Object.keys(IDIOMAS).map(function (c) { return IDIOMAS[c].etiqueta; });
+  var generos = {};
+
+  (cacheLibros || []).forEach(function (b) {
+    var datos = b.datos || {};
+    if (datos.idioma && idiomas.indexOf(datos.idioma) === -1) idiomas.push(datos.idioma);
+    if (datos.genero) generos[datos.genero] = true;
+  });
+
+  function opciones(valores) {
+    return valores.map(function (v) {
+      return '<option value="' + escaparHtml(v) + '"></option>';
+    }).join('');
+  }
+
+  $('lista-idiomas').innerHTML = opciones(idiomas);
+  $('lista-generos').innerHTML = opciones(Object.keys(generos).sort(function (a, b) {
+    return a.localeCompare(b, 'es');
+  }));
+}
+
 function mostrar(libro) {
   ultimoLibro = libro;
   var v = libro.info || {};
-  $('titulo').textContent = v.title || '(sin datos de Google Books)';
+
+  var titulo = v.title || '';
+  $('titulo').textContent = titulo || '(sin datos de Google Books)';
   $('autores').textContent = (v.authors || []).join(' · ');
+
+  // El artículo de Wikipedia solo existe si se encontró al buscar la sinopsis.
+  var cajaWiki = $('wikipedia-caja');
+  var enlaceWiki = $('wikipedia-enlace');
+  if (v.wikipedia) {
+    enlaceWiki.href = v.wikipedia;
+    enlaceWiki.textContent = 'Wikipedia: ' +
+      (nombreArticuloWikipedia(v.wikipedia) || 'artículo del libro');
+    cajaWiki.hidden = false;
+  } else {
+    enlaceWiki.removeAttribute('href');
+    cajaWiki.hidden = true;
+  }
 
   var portada = v.imageLinks && (v.imageLinks.thumbnail || v.imageLinks.smallThumbnail);
   var img = $('portada');
@@ -1131,7 +1232,24 @@ function mostrar(libro) {
     img.removeAttribute('src');
   }
 
+  // La tarjeta se puede corregir (año de la obra, páginas…) antes de guardar.
   var anio = v.anioOriginal || primerAnio(v.publishedDate);
+  $('f-titulo').value = titulo;
+  $('f-autor').value = (v.authors || [])[0] || '';
+  $('f-anio').value = anio || '';
+  $('f-anioedicion').value = v.anioEdicion && v.anioEdicion !== anio ? v.anioEdicion : '';
+  $('f-npaginas').value = v.pageCount || '';
+  $('f-idioma').value = v.idioma || '';
+  $('f-genero').value = (v.categories || [])[0] || '';
+  $('f-nota').value = typeof v.averageRating === 'number' ? v.averageRating : '';
+  $('f-sinopsis').value = textoPlano(v.description);
+
+  var notaPaginas = $('paginas-nota');
+  notaPaginas.textContent = v.paginasEstimadas ? 'de otra edición' : '';
+  notaPaginas.hidden = !v.paginasEstimadas;
+
+  sugerenciasFicha();
+
   var enBase = 'no';
   if (libro.existente && libro.existente.porTitulo) {
     var isbnFicha = libro.existente.datos && libro.existente.datos.isbn;
@@ -1145,13 +1263,6 @@ function mostrar(libro) {
   var filas = [
     ['ISBN', libro.isbn],
     ['Editorial', v.publisher],
-    ['Año', anio || ''],
-    ['Edición', v.anioEdicion && v.anioEdicion !== anio ? v.anioEdicion : ''],
-    ['Páginas', v.pageCount
-      ? String(v.pageCount) + (v.paginasEstimadas ? ' (de otra edición)' : '')
-      : ''],
-    ['Idioma', v.idioma],
-    ['Nota media', v.averageRating],
     ['En tu base', enBase]
   ];
 
@@ -1159,11 +1270,6 @@ function mostrar(libro) {
     .filter(function (f) { return f[1] !== undefined && f[1] !== null && f[1] !== ''; })
     .map(function (f) { return '<dt>' + f[0] + '</dt><dd>' + escaparHtml(f[1]) + '</dd>'; })
     .join('');
-
-  var sinopsis = $('sinopsis');
-  var texto = textoPlano(v.description);
-  sinopsis.textContent = texto;
-  sinopsis.hidden = !texto;
 
   // Varias fichas con el mismo título y autor: no se adivina, se elige.
   var caja = $('existente-caja');
@@ -1681,7 +1787,8 @@ var CAMPOS_FICHA = {
   genero: 'género',
   sinopsis: 'sinopsis',
   autor: 'autor',
-  portada: 'portada'
+  portada: 'portada',
+  wikipedia: 'Wikipedia'
 };
 
 /**
@@ -1707,6 +1814,20 @@ async function guardar() {
     return;
   }
 
+  // Se guarda lo que hay en la tarjeta, no lo que devolvió la búsqueda: el
+  // usuario puede haber corregido el año de la obra, las páginas, etc.
+  var titulo = valorTexto('f-titulo');
+  var anioOriginal = valorNumero('f-anio');
+  var anioEdicion = valorNumero('f-anioedicion');
+  var npaginas = valorNumero('f-npaginas');
+  var nota = valorNumero('f-nota');
+
+  var problema = validarFicha(titulo, anioOriginal, anioEdicion, npaginas, nota);
+  if (problema) {
+    estado(problema, 'error');
+    return;
+  }
+
   var boton = $('btn-guardar');
   boton.disabled = true;
   estado('Guardando…');
@@ -1714,28 +1835,27 @@ async function guardar() {
   try {
     var isbn = ultimoLibro.isbn;
     var v = ultimoLibro.info || {};
-    var autor = await asegurarAutor((v.authors || [])[0] || '');
+    var autor = await asegurarAutor(valorTexto('f-autor'));
     var portada = (v.imageLinks && (v.imageLinks.thumbnail || v.imageLinks.smallThumbnail)) || '';
-
-    // `año` es el de la obra original; el de la edición va aparte, si difiere.
-    var anioOriginal = v.anioOriginal || primerAnio(v.publishedDate) || null;
-    var anioEdicion = v.anioEdicion && v.anioEdicion !== anioOriginal ? v.anioEdicion : null;
 
     var datos = {
       isbn: isbn,
-      titulo: v.title || '',
+      titulo: titulo,
       'año': anioOriginal,
-      añoEdicion: anioEdicion,
-      npaginas: v.pageCount || null,
-      nota: typeof v.averageRating === 'number' ? v.averageRating : null,
-      idioma: v.idioma || '',
-      genero: (v.categories || [])[0] || '',
+      añoEdicion: anioEdicion && anioEdicion !== anioOriginal ? anioEdicion : null,
+      npaginas: npaginas,
+      nota: nota,
+      idioma: valorTexto('f-idioma'),
+      genero: valorTexto('f-genero'),
       comentario: '',
-      sinopsis: descripcionDe(v.description),
+      sinopsis: valorTexto('f-sinopsis'),
       autor: autor.coda || null,
       portada: portada.replace(/^http:/, 'https:'),
       actualizado: firebase.database.ServerValue.TIMESTAMP
     };
+
+    // Solo se escribe si se encontró: rescanear sin artículo no borra el enlace.
+    if (v.wikipedia) datos.wikipedia = v.wikipedia;
 
     // Si ya existía bajo otra clave (p. ej. un codl importado), se actualiza esa.
     var existente = ultimoLibro.existente;
@@ -2373,6 +2493,15 @@ $('btn-cancelar-foto').addEventListener('click', function () {
   estado('');
 });
 $('btn-guardar').addEventListener('click', guardar);
+
+// La cabecera acompaña a lo que se escribe en la tarjeta.
+$('f-titulo').addEventListener('input', function () {
+  $('titulo').textContent = this.value.trim() || '(sin título)';
+});
+
+$('f-autor').addEventListener('input', function () {
+  $('autores').textContent = this.value.trim();
+});
 
 // Con varias fichas iguales, elegir una equivale a haberla encontrado: se
 // puede completar esa y registrar la lectura sin crear otro libro.

@@ -11,7 +11,11 @@ Página estática (sin build, sin framework) para añadir libros a la biblioteca
 Valida el dígito verificador, busca los datos en Google Books (con Open Library como
 alternativa), completa la sinopsis en español y el año de la obra original con la Wikipedia
 española y Wikidata, saca el número de páginas de la edición o, si esa no lo trae, de otras
-ediciones de la misma obra, y guarda en Firebase Realtime Database.
+ediciones de la misma obra, y guarda en Firebase Realtime Database. Antes de guardar, la
+tarjeta es editable: título, autor, año de la obra, año de la edición, páginas, idioma, género,
+nota media y sinopsis se corrigen ahí mismo (útil cuando el año que se encontró es el de una
+edición reciente y no el de la obra). Si la Wikipedia tiene artículo del libro, debajo del
+título aparece el enlace.
 
 `consulta.html` es el otro lado: un panel con las métricas del catálogo
 (libros leídos, lecturas, páginas, nota media, autores, géneros, idiomas…) y filtros que

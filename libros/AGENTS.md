@@ -73,6 +73,10 @@ the browser console.
     Spanish Wikipedia article first (`articuloWikipedia()`), then a Spanish edition of the
     same work in Open Library (`sinopsisOpenLibraryEspanol()`), then a Spanish Google Books
     edition. If none exists, the status line says so and the edition's text is kept.
+    The search adds the author to the query (`"El jugador" Fiódor Dostoievski`): with the
+    title alone, Wikipedia returns the disambiguation page first and the novel was missed.
+    When an article is used, `wikipedia` stores its URL; `lector.html` shows the link under
+    the title and `ficha.html` reads the saved field.
   - `año` is the year the work was first published, not the edition's, which goes in
     `añoEdicion`. The Wikipedia short description (`novela de Jane Austen de 1813`) or
     Wikidata `P577` win; then Open Library's search index; then the oldest Google Books
@@ -89,6 +93,14 @@ the browser console.
     `npaginas: null` after about a second. The 200-edition fetch
     (`edicionesObraOpenLibrary()`, ~160 KB) only happens when the pages are missing and is
     cached per work.
+- La tarjeta de `lector.html` es un formulario (`#form-ficha`): título, autor, año de la obra,
+  año de la edición, páginas, idioma, género, nota media y sinopsis se pueden corregir antes de
+  guardar. `guardar()` lee esos campos, no `ultimoLibro.info`, y valida solo lo escrito: el
+  título no puede quedar vacío; año y año de edición son enteros 1–2100; páginas entero
+  positivo; nota 0–10 (todos opcionales). La cabecera (`#titulo`, `#autores`) se actualiza al
+  escribir. Editar aquí es la salida cuando el año encontrado es el de la edición y no el de la
+  obra (p. ej. *El jugador*, 1867). `wikipedia` se incluye en `CAMPOS_FICHA`, pero no en
+  `leerLibro()` de `ficha.js`: guardar desde la ficha no lo borra.
 - Wikipedia + Wikidata are preferred because Open Library's `first_publish_date` is often
   wrong (1853 for *Orgullo y prejuicio*, 1896 for the *Quijote*) while Wikipedia gives 1813
   and 1605. `es.wikipedia.org`, `www.wikidata.org` and `openlibrary.org` all send
@@ -201,6 +213,9 @@ the browser console.
   are repainted. If the book's author changes, the author section switches to the new person; if
   the author's display name changes, the book's author `<select>` is rebuilt.
 - The cover is only displayed (`#portada-caja`); its URL is edited in the book form.
+- The header shows a Wikipedia link (`#wikipedia-caja`) when the record has `wikipedia`, the
+  URL saved by `lector.js` when the article was found; `pintarWikipedia()` hides it otherwise
+  (and on author sheets).
 
 ## Autores
 
