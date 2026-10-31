@@ -233,7 +233,118 @@ function pintarLecturasLibro(clave) {
         return d ? fmt(d) : '—';
       }
     }
-  ], filas, 'Sin lecturas registradas. Se empiezan desde «Añadir libro».');
+  ], filas, 'Sin lecturas registradas: añade la primera abajo.');
+}
+
+/* ---------- nueva lectura ---------- */
+
+function hoyIso() {
+  var d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
+}
+
+/** Deja el formulario listo: la lectura empieza hoy salvo que se cambie. */
+function prepararFormularioLectura() {
+  var inicio = $('lec-inicio');
+  var fin = $('lec-fin');
+  if (!inicio || !fin) return;
+
+  inicio.max = hoyIso();
+  fin.max = hoyIso();
+  fin.min = '';
+  inicio.value = hoyIso();
+  fin.value = '';
+  $('lec-formato').value = 'libro';
+  aviso('lec-aviso', '');
+  if (LIBRO && lecturasDe(LIBRO.clave).some(lecturaEnCurso)) {
+    aviso('lec-aviso', 'Ya hay una lectura en curso: dala por acabada en la biblioteca ' +
+      'para añadir otra.');
+  }
+}
+
+/** El fin no puede ser anterior al inicio: se mueve el mínimo del campo. */
+function sincronizarFechasLectura() {
+  var inicio = $('lec-inicio').value;
+  var fin = $('lec-fin');
+  fin.min = inicio || '';
+  if (fin.value && inicio && fin.value < inicio) fin.value = '';
+}
+
+/** Último `codlec` con una transacción, igual que en lector.js. */
+async function siguienteCodlec() {
+  var inicial = LECTURAS.reduce(function (maximo, le) {
+    var n = Number(le.codlec);
+    return isFinite(n) && n > maximo ? n : maximo;
+  }, 0);
+
+  var resultado = await db.ref('meta/ultimoCodlec').transaction(function (ultimo) {
+    return (typeof ultimo === 'number' ? ultimo : inicial) + 1;
+  });
+  return resultado.snapshot.val();
+}
+
+async function registrarLecturaFicha(evento) {
+  evento.preventDefault();
+  if (!LIBRO) return;
+
+  var inicio = $('lec-inicio').value;
+  var fin = $('lec-fin').value;
+  var hoy = hoyIso();
+
+  if (!inicio) {
+    aviso('lec-aviso', 'Escribe la fecha de inicio.', 'error');
+    return;
+  }
+  if (inicio > hoy) {
+    aviso('lec-aviso', 'La fecha de inicio no puede ser posterior a hoy.', 'error');
+    return;
+  }
+  if (fin && fin < inicio) {
+    aviso('lec-aviso', 'La fecha de fin no puede ser anterior a la de inicio.', 'error');
+    return;
+  }
+  if (fin && fin > hoy) {
+    aviso('lec-aviso', 'La fecha de fin no puede ser posterior a hoy.', 'error');
+    return;
+  }
+  if (lecturasDe(LIBRO.clave).some(lecturaEnCurso)) {
+    aviso('lec-aviso', 'Ya hay una lectura en curso de este libro: dala por acabada ' +
+      'en la biblioteca antes de empezar otra.', 'error');
+    return;
+  }
+
+  var boton = $('form-lectura').querySelector('button[type="submit"]');
+  boton.disabled = true;
+  aviso('lec-aviso', 'Registrando…');
+
+  try {
+    var codlec = await siguienteCodlec();
+    var lectura = {
+      codlec: codlec,
+      fechaInicio: inicio,
+      fechaFin: fin || null,
+      formato: $('lec-formato').value,
+      libro: LIBRO.clave
+    };
+    await db.ref('lecturas/' + codlec).set(lectura);
+
+    LECTURAS.push(lectura);
+    pintarLecturasLibro(LIBRO.clave);
+    if (AUTOR) pintarObrasAutor(AUTOR.coda);
+
+    prepararFormularioLectura();
+    aviso('lec-aviso', fin
+      ? 'Lectura registrada: del ' + fecha(inicio) + ' al ' + fecha(fin) + '.'
+      : 'Lectura en curso desde el ' + fecha(inicio) + '.', 'ok');
+  } catch (e) {
+    var ayuda = e && e.code === 'PERMISSION_DENIED'
+      ? 'Sin permiso: publica database.rules.json y habilita el acceso anónimo.'
+      : (e.message || e.code || 'error desconocido');
+    aviso('lec-aviso', 'No se pudo registrar la lectura: ' + ayuda, 'error');
+  } finally {
+    boton.disabled = false;
+  }
 }
 
 function pintarObrasAutor(coda) {
@@ -741,6 +852,7 @@ function pintarLibro() {
   revisarDatosLibro();
   pintarCabeceraLibro();
   pintarLecturasLibro(LIBRO.clave);
+  prepararFormularioLectura();
   pintarSeccionAutor();
 }
 
@@ -803,5 +915,10 @@ async function iniciar() {
 
 $('form-libro').addEventListener('submit', guardarLibro);
 $('form-autor').addEventListener('submit', guardarAutor);
+
+if ($('form-lectura')) {
+  $('form-lectura').addEventListener('submit', registrarLecturaFicha);
+  $('lec-inicio').addEventListener('change', sincronizarFechasLectura);
+}
 
 iniciar();

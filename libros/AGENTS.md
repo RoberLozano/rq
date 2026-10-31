@@ -66,7 +66,7 @@ the browser console.
   console ⋮ → Importar JSON. Details in `importar/README.md`. Import replaces the whole
   database, including books added from the page since the last export.
 
-## Sinopsis, año e idioma
+## Sinopsis, año, idioma y páginas
 
 - `completarFicha()` leaves the record ready to save:
   - `sinopsis` is **always in Spanish**, whatever the language of the scanned edition:
@@ -79,6 +79,16 @@ the browser console.
     edition.
   - `idioma` stores the `.mdb` label (`castellano`, `inglés`, `francés`, …) through
     `IDIOMAS`; it never chooses the synopsis language.
+  - `npaginas` is filled whenever possible (`paginasDeLibro()`): the edition's own
+    `pageCount`/`number_of_pages` first — most Open Library editions do not have it — and
+    otherwise the median of the work's other editions, preferring the same language and then
+    the same publisher/year (±1), so a Spanish edition does not take the English original's
+    pages. That value is flagged `paginasEstimadas` and the card shows
+    «Páginas: 322 (de otra edición)»; the flag is never saved. `paginasGoogleBusqueda()` is the
+    last resort (Google limits hard by IP) and an ISBN that exists nowhere leaves
+    `npaginas: null` after about a second. The 200-edition fetch
+    (`edicionesObraOpenLibrary()`, ~160 KB) only happens when the pages are missing and is
+    cached per work.
 - Wikipedia + Wikidata are preferred because Open Library's `first_publish_date` is often
   wrong (1853 for *Orgullo y prejuicio*, 1896 for the *Quijote*) while Wikipedia gives 1813
   and 1605. `es.wikipedia.org`, `www.wikidata.org` and `openlibrary.org` all send
@@ -169,8 +179,13 @@ the browser console.
   `#tabla-autores`, clicks on a link navigate; clicks elsewhere in the row still toggle the
   author filter.
 - `?libro=` fills the book form and shows its «Lecturas» `<details>` (newest first, an in-course
-  reading on top and marked «en curso»; read-only here) plus, below, the book's author form with
-  its «Obras» `<details>` collapsed. `?autor=` shows only the author form with «Obras» open.
+  reading on top and marked «en curso») plus, below, the book's author form with its «Obras»
+  `<details>` collapsed. The «Nueva lectura» form inside that block (`#form-lectura`,
+  `registrarLecturaFicha()`) writes the same `/lecturas` row as `lector.html`
+  (`siguienteCodlec()` repeats the transaction on `meta/ultimoCodlec`, initial = highest loaded
+  `codlec`); start defaults to today, finish is optional, and it refuses a second in-course
+  reading, a finish before the start or any date after today. The table and the author's
+  «Veces» repaint in place. `?autor=` shows only the author form with «Obras» open.
   `← Biblioteca` uses `document.referrer` when it came from `consulta.html`, so the tab and
   filters survive.
 - Both forms save with `update()` and only send changed fields; `guardarLibro()` also writes

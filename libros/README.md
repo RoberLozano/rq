@@ -10,7 +10,8 @@ Página estática (sin build, sin framework) para añadir libros a la biblioteca
 
 Valida el dígito verificador, busca los datos en Google Books (con Open Library como
 alternativa), completa la sinopsis en español y el año de la obra original con la Wikipedia
-española y Wikidata, y guarda en Firebase Realtime Database.
+española y Wikidata, saca el número de páginas de la edición o, si esa no lo trae, de otras
+ediciones de la misma obra, y guarda en Firebase Realtime Database.
 
 `consulta.html` es el otro lado: un panel con las métricas del catálogo
 (libros leídos, lecturas, páginas, nota media, autores, géneros, idiomas…) y filtros que
@@ -40,8 +41,9 @@ castellano y «The Hobbit» en inglés— son fichas diferentes y no se mezclan.
 
 En `consulta.html`, cualquier título o nombre de autor es un enlace: abre `ficha.html`, donde se
 ven y se corrigen los datos del libro o del autor. La ficha del libro tiene sus lecturas en un
-desplegable y, debajo, la del autor con sus obras plegadas; la ficha del autor muestra sus obras
-desplegadas y cada una lleva a su propio libro. Solo se guardan los campos que cambies.
+desplegable, con un formulario **Nueva lectura** debajo para añadir una relectura sin tener que
+escanear el ISBN; debajo va la del autor con sus obras plegadas. La ficha del autor muestra sus
+obras desplegadas y cada una lleva a su propio libro. Solo se guardan los campos que cambies.
 
 ## Uso
 

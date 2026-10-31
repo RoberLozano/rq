@@ -214,6 +214,10 @@
 
     .bloque-texto { margin-top: .7rem; }
 
+    /* Formulario de nueva lectura, debajo de la tabla. */
+    #form-lectura { margin-top: 1rem; }
+    #form-lectura fieldset { margin-bottom: 0; }
+
     .acciones {
       display: flex;
       flex-wrap: wrap;
@@ -346,6 +350,28 @@
           <div class="scroll">
             <table id="tabla-lecturas"></table>
           </div>
+
+          <form id="form-lectura" novalidate>
+            <fieldset>
+              <legend>Nueva lectura</legend>
+              <div class="rejilla">
+                <label>Inicio <input type="date" id="lec-inicio"></label>
+                <label>Fin (si ya la has acabado) <input type="date" id="lec-fin"></label>
+                <label>Formato
+                  <select id="lec-formato">
+                    <option value="libro">libro</option>
+                    <option value="e-book">e-book</option>
+                    <option value="impreso">impreso</option>
+                    <option value="otro">otro</option>
+                  </select>
+                </label>
+              </div>
+              <div class="acciones">
+                <button type="submit">Añadir lectura</button>
+                <span class="nota" id="lec-aviso"></span>
+              </div>
+            </fieldset>
+          </form>
         </div>
       </details>
 

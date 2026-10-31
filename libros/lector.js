@@ -162,6 +162,165 @@ function obraOpenLibrary(clave) {
   return cacheObras[clave];
 }
 
+/* ---------- número de páginas ---------- */
+
+var cacheEdicionesObra = {};
+
+/** Ediciones de una obra: la edición escaneada casi nunca trae las páginas. */
+function edicionesObraOpenLibrary(clave) {
+  if (!clave) return Promise.resolve([]);
+  if (!cacheEdicionesObra[clave]) {
+    cacheEdicionesObra[clave] = fetch('https://openlibrary.org' + clave + '/editions.json?limit=200')
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { return (d && d.entries) || []; })
+      .catch(function () { return []; });
+  }
+  return cacheEdicionesObra[clave];
+}
+
+function mediana(numeros) {
+  var v = numeros.slice().sort(function (a, b) { return a - b; });
+  if (!v.length) return 0;
+  var medio = Math.floor(v.length / 2);
+  return v.length % 2 ? v[medio] : Math.round((v[medio - 1] + v[medio]) / 2);
+}
+
+/** Código de idioma de Open Library («spa») de la edición, si se conoce. */
+function idiomaOpenLibrary(info) {
+  var codigos = idiomasDeLibro(info || {});
+  // `idioma` ya viene calculado para el catálogo («castellano»).
+  idiomasDeEtiqueta((info && info.idioma) || '').forEach(function (c) {
+    if (codigos.indexOf(c) === -1) codigos.push(c);
+  });
+  for (var i = 0; i < codigos.length; i++) {
+    if (IDIOMAS[codigos[i]]) return IDIOMAS[codigos[i]].ol;
+  }
+  return '';
+}
+
+/** ¿Los dos textos se refieren a lo mismo? «HarperCollins» ~ «HarperCollins Español». */
+function mismoTexto(a, b) {
+  var x = normalizarNombre(a);
+  var y = normalizarNombre(b);
+  if (!x || !y) return false;
+  return x.indexOf(y) !== -1 || y.indexOf(x) !== -1;
+}
+
+/**
+ * Mediana de las páginas de las ediciones de la obra. Primero las del mismo
+ * idioma y, de esas, las de la misma editorial o año que la escaneada.
+ */
+async function paginasObraOpenLibrary(clave, info) {
+  var ediciones = await edicionesObraOpenLibrary(clave);
+  var conPaginas = ediciones.filter(function (e) {
+    return Number(e.number_of_pages) > 0;
+  });
+  if (!conPaginas.length) return 0;
+
+  var codigoOl = idiomaOpenLibrary(info);
+  var delIdioma = conPaginas.filter(function (e) {
+    return (e.languages || []).some(function (l) {
+      return l && l.key === '/languages/' + codigoOl;
+    });
+  });
+  var base = delIdioma.length ? delIdioma : conPaginas;
+
+  var anio = primerAnio((info || {}).publishedDate);
+
+  function cercania(e) {
+    var puntos = 0;
+    var editorial = (info || {}).publisher || '';
+    if (editorial && (e.publishers || []).some(function (p) { return mismoTexto(p, editorial); })) {
+      puntos += 2;
+    }
+    var suyo = primerAnio(e.publish_date);
+    if (anio && suyo && Math.abs(suyo - anio) <= 1) puntos += 1;
+    return puntos;
+  }
+
+  var mejor = 0;
+  base.forEach(function (e) { mejor = Math.max(mejor, cercania(e)); });
+  var cerca = mejor ? base.filter(function (e) { return cercania(e) === mejor; }) : base;
+
+  return mediana(cerca.map(function (e) { return Number(e.number_of_pages); }));
+}
+
+/** Último recurso: ediciones con el mismo título y autor en Google Books. */
+async function paginasGoogleBusqueda(info) {
+  var titulo = tituloBase(info.title);
+  if (!titulo) return 0;
+
+  var autor = limpiarNombreAutor((info.authors || [])[0] || '');
+  var consulta = 'intitle:' + encodeURIComponent('"' + titulo + '"');
+  if (autor) consulta += '+inauthor:' + encodeURIComponent('"' + autor + '"');
+
+  var respuesta = await fetch('https://www.googleapis.com/books/v1/volumes?q=' +
+    consulta + '&maxResults=20&hl=es');
+  if (!respuesta.ok) return 0;
+
+  var json = await respuesta.json();
+  var codigo = idiomasDeLibro(info)[0] || '';
+  var todas = [];
+  var delIdioma = [];
+
+  (json.items || []).forEach(function (item) {
+    var v = (item && item.volumeInfo) || {};
+    if (!(Number(v.pageCount) > 0)) return;
+    if (!titulosParecidos(titulo, v.title || '')) return;
+    todas.push(Number(v.pageCount));
+    if (!codigo || idiomasDeEtiqueta(v.language || '').indexOf(codigo) !== -1) {
+      delIdioma.push(Number(v.pageCount));
+    }
+  });
+
+  return mediana(delIdioma.length ? delIdioma : todas);
+}
+
+/**
+ * Páginas de la edición escaneada. Google Books limita por IP y las ediciones
+ * de Open Library casi nunca traen `number_of_pages`, así que si falta se
+ * buscan en las demás ediciones de la misma obra, prefiriendo el mismo idioma.
+ * Devuelve `{ paginas, estimada }`; `estimada` avisa de que no es esta edición.
+ */
+async function paginasDeLibro(isbn, info) {
+  if (Number((info || {}).pageCount) > 0) {
+    return { paginas: Number(info.pageCount), estimada: false };
+  }
+
+  var edicion = await edicionOpenLibrary(isbn);
+  if (edicion && Number(edicion.number_of_pages) > 0) {
+    return { paginas: Number(edicion.number_of_pages), estimada: false };
+  }
+
+  var obras = ((edicion && edicion.works) || [])
+    .map(function (o) { return o && o.key; })
+    .filter(Boolean);
+
+  // Si el ISBN no está en Open Library, la búsqueda da la obra a la que ir.
+  if (!obras.length) {
+    try {
+      var r = await fetch('https://openlibrary.org/search.json?q=isbn:' + isbn +
+        '&fields=key&limit=1');
+      if (r.ok) {
+        var doc = ((await r.json()).docs || [])[0];
+        if (doc && doc.key) obras = [doc.key];
+      }
+    } catch (e) { /* sin Open Library: se prueba Google */ }
+  }
+
+  for (var i = 0; i < obras.length; i++) {
+    var paginas = await paginasObraOpenLibrary(obras[i], info || {});
+    if (paginas) return { paginas: paginas, estimada: true };
+  }
+
+  try {
+    var otras = await paginasGoogleBusqueda(info || {});
+    if (otras) return { paginas: otras, estimada: true };
+  } catch (e) { /* Google limita otra vez: se guarda sin páginas */ }
+
+  return { paginas: 0, estimada: false };
+}
+
 /** Título de la obra (a veces traducido) para buscarla en la Wikipedia. */
 async function tituloObraOpenLibrary(isbn) {
   var edicion = await edicionOpenLibrary(isbn);
@@ -798,6 +957,17 @@ async function completarFicha(info, isbn) {
   ficha.anioEdicion = anioEdicion;
   ficha.anioOriginal = anioOriginal || anioEdicion;
 
+  // 3) Páginas: las trae la edición, o se sacan de otra edición de la obra.
+  if (!(Number(ficha.pageCount) > 0)) {
+    try {
+      var paginas = await paginasDeLibro(isbn, ficha);
+      if (paginas.paginas) {
+        ficha.pageCount = paginas.paginas;
+        ficha.paginasEstimadas = paginas.estimada;
+      }
+    } catch (e) { /* sin páginas: se guarda el libro igual */ }
+  }
+
   return ficha;
 }
 
@@ -936,6 +1106,9 @@ async function buscar(isbn) {
     if (info && info.sinopsisEnEspanol === false) {
       mensaje += ' No encontré sinopsis en español para este ISBN.';
     }
+    if (info && !(Number(info.pageCount) > 0)) {
+      mensaje += ' No encontré el número de páginas: añádelo en la ficha.';
+    }
     estado(mensaje);
   } catch (e) {
     estado('Error al buscar: ' + e.message, 'error');
@@ -974,7 +1147,9 @@ function mostrar(libro) {
     ['Editorial', v.publisher],
     ['Año', anio || ''],
     ['Edición', v.anioEdicion && v.anioEdicion !== anio ? v.anioEdicion : ''],
-    ['Páginas', v.pageCount],
+    ['Páginas', v.pageCount
+      ? String(v.pageCount) + (v.paginasEstimadas ? ' (de otra edición)' : '')
+      : ''],
     ['Idioma', v.idioma],
     ['Nota media', v.averageRating],
     ['En tu base', enBase]
