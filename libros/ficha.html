@@ -95,6 +95,9 @@
 
     .nota { font-size: .82rem; color: var(--tenue); }
 
+    /* Enlace a la Wikipedia del autor dentro de su formulario (ficha de libro). */
+    #autor-wiki { margin: .1rem 0 .6rem; }
+
     /* Portada, si la ficha la tiene: solo se enseña, el campo está en el formulario. */
     #portada-caja { margin: .7rem 0 0; }
     #portada {
@@ -132,7 +135,7 @@
 
     details.bloque > summary::-webkit-details-marker { display: none; }
 
-    details.bloque > summary .titulo { font-weight: 600; }
+    details.bloque > summary .titulo { font-weight: 600; flex: 1; min-width: 0; }
 
     details.bloque > summary .cuenta {
       margin-left: auto;
@@ -310,39 +313,43 @@
     <p id="estado" role="status" aria-live="polite">Cargando…</p>
 
     <div id="contenido" hidden>
-      <form id="form-libro" hidden novalidate>
-        <fieldset>
-          <legend>Datos del libro</legend>
-          <div class="rejilla">
-            <label class="ancho">Título <input type="text" id="l-titulo" required></label>
-            <label>Autor <select id="l-autor"></select></label>
-            <label>Idioma <input type="text" id="l-idioma" list="lista-idiomas"></label>
-            <label>Año de la obra
-              <input type="number" id="l-anio" min="1" max="2100" step="1">
+      <details class="bloque" id="bloque-libro" open hidden>
+        <summary>
+          <span class="titulo">Datos del libro</span>
+        </summary>
+        <div class="contenido">
+          <form id="form-libro" novalidate>
+            <div class="rejilla">
+              <label class="ancho">Título <input type="text" id="l-titulo" required></label>
+              <label>Autor <select id="l-autor"></select></label>
+              <label>Idioma <input type="text" id="l-idioma" list="lista-idiomas"></label>
+              <label>Año de la obra
+                <input type="number" id="l-anio" min="1" max="2100" step="1">
+              </label>
+              <label>Año de esta edición
+                <input type="number" id="l-anioedicion" min="1" max="2100" step="1">
+              </label>
+              <label>Páginas <input type="number" id="l-npaginas" min="1" step="1"></label>
+              <label>Nota (0–10)
+                <input type="number" id="l-nota" min="0" max="10" step="0.1">
+              </label>
+              <label>Género <input type="text" id="l-genero" list="lista-generos"></label>
+              <label>ISBN <input type="text" id="l-isbn" inputmode="numeric"></label>
+              <label class="ancho">Portada (URL) <input type="url" id="l-portada"></label>
+            </div>
+            <label class="bloque-texto">Comentario
+              <textarea id="l-comentario" rows="3"></textarea>
             </label>
-            <label>Año de esta edición
-              <input type="number" id="l-anioedicion" min="1" max="2100" step="1">
+            <label class="bloque-texto">Sinopsis
+              <textarea id="l-sinopsis" rows="10"></textarea>
             </label>
-            <label>Páginas <input type="number" id="l-npaginas" min="1" step="1"></label>
-            <label>Nota (0–10)
-              <input type="number" id="l-nota" min="0" max="10" step="0.1">
-            </label>
-            <label>Género <input type="text" id="l-genero" list="lista-generos"></label>
-            <label>ISBN <input type="text" id="l-isbn" inputmode="numeric"></label>
-            <label class="ancho">Portada (URL) <input type="url" id="l-portada"></label>
-          </div>
-          <label class="bloque-texto">Comentario
-            <textarea id="l-comentario" rows="3"></textarea>
-          </label>
-          <label class="bloque-texto">Sinopsis
-            <textarea id="l-sinopsis" rows="10"></textarea>
-          </label>
-          <div class="acciones">
-            <button type="submit">Guardar cambios</button>
-            <span class="nota" id="libro-aviso"></span>
-          </div>
-        </fieldset>
-      </form>
+            <div class="acciones">
+              <button type="submit">Guardar cambios</button>
+              <span class="nota" id="libro-aviso"></span>
+            </div>
+          </form>
+        </div>
+      </details>
 
       <details class="bloque" id="bloque-lecturas" open hidden>
         <summary>
@@ -378,28 +385,35 @@
         </div>
       </details>
 
-      <form id="form-autor" hidden novalidate>
-        <fieldset>
-          <legend>Datos del autor</legend>
-          <div class="rejilla">
-            <label>Nombre <input type="text" id="a-nombre"></label>
-            <label>Apellidos <input type="text" id="a-apellidos"></label>
-            <label>Nombre en las listas <input type="text" id="a-autor"></label>
-            <label>Nacionalidad <input type="text" id="a-nacionalidad" list="lista-paises"></label>
-            <label>Año de nacimiento
-              <input type="number" id="a-nacimiento" min="1" max="2100" step="1">
-            </label>
-            <label>Año de muerte
-              <input type="number" id="a-muerte" min="1" max="2100" step="1">
-            </label>
-            <label>Sexo <select id="a-sexo"></select></label>
-          </div>
-          <div class="acciones">
-            <button type="submit">Guardar cambios</button>
-            <span class="nota" id="autor-aviso"></span>
-          </div>
-        </fieldset>
-      </form>
+      <details class="bloque" id="bloque-autor" open hidden>
+        <summary>
+          <span class="titulo" id="autor-titulo">Datos del autor</span>
+        </summary>
+        <div class="contenido">
+          <p class="nota" id="autor-wiki" hidden>
+            <a id="autor-wiki-enlace" href="#" target="_blank" rel="noopener"></a>
+          </p>
+          <form id="form-autor" novalidate>
+            <div class="rejilla">
+              <label>Nombre <input type="text" id="a-nombre"></label>
+              <label>Apellidos <input type="text" id="a-apellidos"></label>
+              <label>Nombre en las listas <input type="text" id="a-autor"></label>
+              <label>Nacionalidad <input type="text" id="a-nacionalidad" list="lista-paises"></label>
+              <label>Año de nacimiento
+                <input type="number" id="a-nacimiento" min="1" max="2100" step="1">
+              </label>
+              <label>Año de muerte
+                <input type="number" id="a-muerte" min="1" max="2100" step="1">
+              </label>
+              <label>Sexo <select id="a-sexo"></select></label>
+            </div>
+            <div class="acciones">
+              <button type="submit">Guardar cambios</button>
+              <span class="nota" id="autor-aviso"></span>
+            </div>
+          </form>
+        </div>
+      </details>
 
       <details class="bloque" id="bloque-obras" open hidden>
         <summary>

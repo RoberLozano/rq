@@ -206,6 +206,18 @@
 
     #paginas-nota { font-size: .75rem; }
 
+    /* Datos del autor que se creará al guardar el libro. */
+    #autor-nuevo {
+      clear: both;
+      margin-top: .9rem;
+      padding: .6rem .8rem;
+      border: 1px solid var(--borde);
+      border-radius: .5rem;
+    }
+
+    #autor-nuevo p { margin: .2rem 0; font-size: .9rem; }
+    #autor-nuevo-texto { color: var(--texto); }
+
     #lectura-caja {
       border: 1px solid var(--borde);
       border-radius: .6rem;
@@ -295,6 +307,13 @@
         </div>
         <label class="ancho">Sinopsis <textarea id="f-sinopsis" rows="9"></textarea></label>
       </form>
+
+      <div id="autor-nuevo" hidden>
+        <p id="autor-nuevo-texto"></p>
+        <p id="autor-nuevo-wikipedia" hidden>
+          <a id="autor-nuevo-enlace" href="#" target="_blank" rel="noopener"></a>
+        </p>
+      </div>
 
       <dl id="datos"></dl>
 

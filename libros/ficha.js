@@ -80,6 +80,212 @@ function pintarWikipedia(url) {
   caja.hidden = false;
 }
 
+/* ---------- Wikipedia del autor ---------- */
+
+/* Las fichas importadas del .mdb no guardan el artículo: `wikipedia` solo lo
+   escriben los autores creados desde lector.html. Para las demás se busca una
+   vez por sesión y se acepta solo un artículo que se llame como la persona y
+   que sea de un escritor (mismo criterio que `fichaDeAutor()` en lector.js). */
+var WIKI_AUTOR = {};
+var TIPO_AUTOR = /(escritor|novelista|poeta|poetisa|dramaturg|ensayista|cuentista|guionista|periodista|traductor|traductora|biógrafo|biógrafa|historiador|filósofo|filósofa)/i;
+
+/** Palabras comparables: sin acentos, sin mayúsculas, sin puntos ni guiones. */
+function tokensTexto(texto) {
+  return String(texto || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .split(/[\s.\-]+/)
+    .filter(Boolean);
+}
+
+/** Distancia de edición, para «Dostoievski» ~ «Dostoyevski». */
+function distanciaTexto(a, b) {
+  var anterior = [];
+  for (var j = 0; j <= b.length; j++) anterior[j] = j;
+
+  for (var i = 1; i <= a.length; i++) {
+    var actual = [i];
+    for (var k = 1; k <= b.length; k++) {
+      actual[k] = Math.min(
+        anterior[k] + 1,
+        actual[k - 1] + 1,
+        anterior[k - 1] + (a.charAt(i - 1) === b.charAt(k - 1) ? 0 : 1)
+      );
+    }
+    anterior = actual;
+  }
+  return anterior[b.length];
+}
+
+/** ¿Son la misma palabra? Una inicial vale por el nombre y se toleran erratas. */
+function palabraParecida(a, b) {
+  if (a === b) return true;
+  if (a.length === 1) return b.charAt(0) === a;
+  if (b.length === 1) return a.charAt(0) === b;
+  return a.length >= 6 && b.length >= 6 && distanciaTexto(a, b) <= 1;
+}
+
+/**
+ * ¿El artículo se llama como alguna forma del nombre? «Tolkien» casa con
+ * «J. R. R. Tolkien», y «Arturo Pérez-Reverte» con «Arturo Pérez-Reverte».
+ */
+function nombreEnArticulo(variantes, titulo) {
+  var articulo = tokensTexto(String(titulo || '').replace(/\s*\([^)]*\)\s*$/, ''));
+  if (!articulo.length) return false;
+
+  for (var v = 0; v < variantes.length; v++) {
+    var entrada = tokensTexto(variantes[v]);
+    if (!entrada.length) continue;
+
+    var apellido = entrada[entrada.length - 1];
+    var tieneApellido = false;
+    for (var k = 0; k < articulo.length; k++) {
+      if (palabraParecida(articulo[k], apellido)) { tieneApellido = true; break; }
+    }
+    if (!tieneApellido) continue;
+
+    var i = 0;
+    for (var j = 0; j < articulo.length && i < entrada.length; j++) {
+      if (palabraParecida(articulo[j], entrada[i])) i++;
+    }
+    if (i === entrada.length) return true;
+  }
+  return false;
+}
+
+function urlArticuloWikipedia(titulo) {
+  return 'https://es.wikipedia.org/wiki/' +
+    encodeURIComponent(String(titulo || '').replace(/ /g, '_'));
+}
+
+async function buscarTitulosWikipedia(consulta) {
+  try {
+    var url = 'https://es.wikipedia.org/w/api.php?action=query&list=search&format=json&origin=*' +
+      '&srlimit=5&srsearch=' + encodeURIComponent(consulta);
+    var r = await fetch(url);
+    if (!r.ok) return [];
+    var json = await r.json();
+    return ((json.query && json.query.search) || []).map(function (x) { return x.title; });
+  } catch (e) {
+    return [];
+  }
+}
+
+/** Descripción corta de cada artículo, en el orden pedido. */
+async function descripcionesDeArticulos(titulos) {
+  var url = 'https://es.wikipedia.org/w/api.php?action=query&format=json&origin=*' +
+    '&prop=description&redirects=1&titles=' + encodeURIComponent(titulos.join('|'));
+  try {
+    var r = await fetch(url);
+    if (!r.ok) return [];
+    var json = await r.json();
+    var paginas = (json.query && json.query.pages) || {};
+    var redirecciones = {};
+    ((json.query && json.query.redirects) || []).forEach(function (x) {
+      redirecciones[x.from] = x.to;
+    });
+
+    var porTitulo = {};
+    Object.keys(paginas).forEach(function (clave) {
+      var p = paginas[clave];
+      if (!p || p.missing !== undefined) return;
+      porTitulo[p.title] = p.description || '';
+    });
+
+    var salida = [];
+    for (var i = 0; i < titulos.length; i++) {
+      var titulo = redirecciones[titulos[i]] || titulos[i];
+      salida.push({ titulo: titulo, descripcion: porTitulo[titulo] || '' });
+    }
+    return salida;
+  } catch (e) {
+    return [];
+  }
+}
+
+/** Sin descripción solo vale que el título sea exactamente el nombre. */
+function esArticuloDeEscritor(ficha, variantes) {
+  if (ficha.descripcion) return TIPO_AUTOR.test(ficha.descripcion);
+  var articulo = tokensTexto(ficha.titulo).join(' ');
+  for (var i = 0; i < variantes.length; i++) {
+    if (tokensTexto(variantes[i]).join(' ') === articulo) return true;
+  }
+  return false;
+}
+
+/** Artículo del autor en la Wikipedia española, o '' si no hay uno claro. */
+async function articuloDeAutor(a) {
+  if (!a) return '';
+
+  var variantes = [];
+  function anadir(texto) {
+    texto = String(texto || '').trim();
+    if (texto && variantes.indexOf(texto) === -1) variantes.push(texto);
+  }
+
+  var completo = [a.nombre, a.apellidos].filter(Boolean).join(' ');
+  var apellidos = String(a.apellidos || '').split(/\s+/).filter(Boolean);
+
+  anadir(a.autor);
+  anadir(completo);
+  // «Pérez-Reverte Gutiérrez» → «Pérez-Reverte»: el artículo suele acortar.
+  if (apellidos.length > 1) anadir([a.nombre, apellidos[0]].filter(Boolean).join(' '));
+  if (!variantes.length) return '';
+
+  var consultas = [];
+  if (a.autor) consultas.push(a.autor);
+  if (completo && consultas.indexOf(completo) === -1) consultas.push(completo);
+
+  for (var i = 0; i < consultas.length; i++) {
+    var titulos = await buscarTitulosWikipedia(consultas[i]);
+    if (!titulos.length) continue;
+
+    var fichas = await descripcionesDeArticulos(titulos.slice(0, 5));
+    for (var j = 0; j < fichas.length; j++) {
+      if (!nombreEnArticulo(variantes, fichas[j].titulo)) continue;
+      if (!esArticuloDeEscritor(fichas[j], variantes)) continue;
+      return urlArticuloWikipedia(fichas[j].titulo);
+    }
+  }
+  return '';
+}
+
+/** En la ficha del autor va en la cabecera; junto a un libro, sobre su ficha. */
+function pintarWikipediaAutor(url, enCabecera) {
+  var caja = $('autor-wiki');
+  var enlace = $('autor-wiki-enlace');
+
+  if (enCabecera) pintarWikipedia(url);
+
+  if (!caja || !enlace) return;
+  if (enCabecera || !url) {
+    caja.hidden = true;
+    enlace.removeAttribute('href');
+    return;
+  }
+
+  enlace.href = url;
+  enlace.textContent = 'Wikipedia: ' + (nombreArticuloWikipedia(url) || 'artículo del autor');
+  caja.hidden = false;
+}
+
+async function mostrarWikipediaAutor(enCabecera) {
+  if (!AUTOR) return;
+
+  var coda = AUTOR.coda;
+  var url = AUTOR.wikipedia || WIKI_AUTOR[coda];
+  if (!url) {
+    url = await articuloDeAutor(AUTOR);
+    // Se recuerda aunque sea '' para no repetir la búsqueda al repintar.
+    WIKI_AUTOR[coda] = url;
+  }
+
+  // La ficha puede haber cambiado mientras se buscaba.
+  if (!AUTOR || AUTOR.coda !== coda) return;
+  pintarWikipediaAutor(url, enCabecera);
+}
+
 function ms(iso) {
   var partes = String(iso || '').split('-');
   if (partes.length !== 3) return NaN;
@@ -801,6 +1007,13 @@ async function guardarAutor(evento) {
     else pintarCabeceraAutor();
     pintarLeyendaAutor();
 
+    // Si cambió el nombre, el artículo que se había encontrado ya no vale.
+    if (cambios.nombre !== undefined || cambios.apellidos !== undefined ||
+      cambios.autor !== undefined) {
+      delete WIKI_AUTOR[AUTOR.coda];
+    }
+    mostrarWikipediaAutor(!LIBRO);
+
     aviso('autor-aviso', 'Cambios guardados.', 'ok');
   } catch (e) {
     aviso('autor-aviso', 'No se pudo guardar: ' + (e.message || e), 'error');
@@ -827,13 +1040,12 @@ function pintarCabeceraAutor() {
   partes.push(obras + (obras === 1 ? ' obra' : ' obras'));
 
   $('subtitulo').textContent = partes.join(' · ');
-  pintarWikipedia('');
   pintarPortada();
 }
 
 function pintarLeyendaAutor() {
-  var leyenda = $('form-autor').querySelector('legend');
-  if (!leyenda) return;
+  var leyenda = $('autor-titulo');
+  if (!leyenda || !AUTOR) return;
   var nombre = nombreCompletoAutor(AUTOR.coda) || AUTOR.autor || ('Autor ' + AUTOR.coda);
   leyenda.textContent = LIBRO ? 'Datos del autor · ' + nombre : 'Datos del autor';
 }
@@ -850,12 +1062,17 @@ function pintarAutor(principal) {
   pintarLeyendaAutor();
   pintarObrasAutor(AUTOR.coda);
 
-  $('form-autor').hidden = false;
+  $('bloque-autor').hidden = false;
   $('bloque-obras').hidden = false;
-  // En la ficha de un libro interesa el libro; las obras quedan plegadas.
+  // En el móvil los formularios empiezan plegados; las obras solo se abren en
+  // la ficha del autor (en la de un libro, el libro es lo que interesa).
+  $('bloque-autor').open = !esMovil();
   $('bloque-obras').open = principal;
 
   if (principal) pintarCabeceraAutor();
+
+  // Cabecera en la ficha del autor; sobre el formulario si acompaña a un libro.
+  mostrarWikipediaAutor(principal);
 }
 
 /** Según el autor actual del libro, enseña u oculta los bloques de autor. */
@@ -865,17 +1082,25 @@ function pintarSeccionAutor() {
     pintarAutor(false);
   } else {
     AUTOR = null;
-    $('form-autor').hidden = true;
+    $('bloque-autor').hidden = true;
     $('bloque-obras').hidden = true;
+    $('autor-wiki').hidden = true;
   }
 }
 
 /* ---------- arranque ---------- */
 
+/** En pantallas estrechas, los bloques que no son el principal empiezan plegados. */
+function esMovil() {
+  return window.matchMedia && window.matchMedia('(max-width: 640px)').matches;
+}
+
 function pintarLibro() {
-  $('form-libro').hidden = false;
+  var movil = esMovil();
+  $('bloque-libro').hidden = false;
+  $('bloque-libro').open = !movil;
   $('bloque-lecturas').hidden = false;
-  $('bloque-lecturas').open = true;
+  $('bloque-lecturas').open = !movil;
 
   rellenarCamposLibro();
   revisarDatosLibro();

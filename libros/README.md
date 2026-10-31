@@ -15,7 +15,8 @@ ediciones de la misma obra, y guarda en Firebase Realtime Database. Antes de gua
 tarjeta es editable: título, autor, año de la obra, año de la edición, páginas, idioma, género,
 nota media y sinopsis se corrigen ahí mismo (útil cuando el año que se encontró es el de una
 edición reciente y no el de la obra). Si la Wikipedia tiene artículo del libro, debajo del
-título aparece el enlace.
+título aparece el enlace. Y si el autor no está todavía en la base, antes de guardar se enseña
+la ficha que se creará (nombre completo, país, años y sexo, con enlace a su Wikipedia).
 
 `consulta.html` es el otro lado: un panel con las métricas del catálogo
 (libros leídos, lecturas, páginas, nota media, autores, géneros, idiomas…) y filtros que
@@ -48,6 +49,11 @@ ven y se corrigen los datos del libro o del autor. La ficha del libro tiene sus 
 desplegable, con un formulario **Nueva lectura** debajo para añadir una relectura sin tener que
 escanear el ISBN; debajo va la del autor con sus obras plegadas. La ficha del autor muestra sus
 obras desplegadas y cada una lleva a su propio libro. Solo se guardan los campos que cambies.
+Tanto la ficha del libro como la del autor enlazan a su artículo de la Wikipedia española
+(también la del autor cuando acompaña a un libro); si no hay un artículo claro, no hay enlace.
+Las secciones de la ficha —datos del libro, lecturas, datos del autor y obras— se pliegan
+pulsando su cabecera; en el móvil empiezan plegadas (salvo las obras en la ficha del autor), así
+que la ficha se lee como una lista de apartados.
 
 ## Uso
 

@@ -75,8 +75,12 @@ the browser console.
     edition. If none exists, the status line says so and the edition's text is kept.
     The search adds the author to the query (`"El jugador" Fiódor Dostoievski`): with the
     title alone, Wikipedia returns the disambiguation page first and the novel was missed.
-    When an article is used, `wikipedia` stores its URL; `lector.html` shows the link under
-    the title and `ficha.html` reads the saved field.
+    Searching by author alone is not enough either: the candidate article has to be titled
+    like the work (`tituloDeObra()`, ignoring articles and connectors), or a title with no
+    article of its own links to a different book («Los mundos de Ursula K. Le Guin» →
+    «Premio Ursula K. Le Guin» or «El nombre del mundo es Bosque»). When an article is used,
+    `wikipedia` stores its URL; `lector.html` shows the link under the title and `ficha.html`
+    reads the saved field.
   - `año` is the year the work was first published, not the edition's, which goes in
     `añoEdicion`. The Wikipedia short description (`novela de Jane Austen de 1813`) or
     Wikidata `P577` win; then Open Library's search index; then the oldest Google Books
@@ -200,6 +204,15 @@ the browser console.
   «Veces» repaint in place. `?autor=` shows only the author form with «Obras» open.
   `← Biblioteca` uses `document.referrer` when it came from `consulta.html`, so the tab and
   filters survive.
+- Las cuatro secciones de la ficha son `<details class="bloque">` colapsables: «Datos del libro»
+  (`#bloque-libro`), «Lecturas» (`#bloque-lecturas`), «Datos del autor» (`#bloque-autor`) y
+  «Obras» (`#bloque-obras`). Las dos primeras envuelven su `<form>`; el `id` del formulario no
+  cambia, así que los listeners y el guardado siguen igual, y lo que se oculta o muestra es el
+  bloque, no el formulario. `esMovil()` (`max-width: 640px`) decide el estado inicial:
+  `pintarLibro()` abre libro y lecturas en escritorio y los deja plegados en el móvil;
+  `pintarAutor()` abre el formulario de autor solo en escritorio y abre «Obras» únicamente en la
+  ficha del autor. Así, en el móvil la ficha de un libro es la cabecera y cuatro cabeceras de
+  sección. El texto de `#autor-titulo` es el que antes era el `<legend>` (`pintarLeyendaAutor()`).
 - Both forms save with `update()` and only send changed fields; `guardarLibro()` also writes
   `actualizado` with `ServerValue.TIMESTAMP`. `/autores` rows have no `actualizado` field, so
   `guardarAutor()` must not add one. An empty numeric field is written as `null`; empty strings
@@ -214,20 +227,42 @@ the browser console.
   the author's display name changes, the book's author `<select>` is rebuilt.
 - The cover is only displayed (`#portada-caja`); its URL is edited in the book form.
 - The header shows a Wikipedia link (`#wikipedia-caja`) when the record has `wikipedia`, the
-  URL saved by `lector.js` when the article was found; `pintarWikipedia()` hides it otherwise
-  (and on author sheets).
+  URL saved by `lector.js` when the article was found; `pintarWikipedia()` hides it otherwise.
+  On an author sheet the header link is the author's article: new authors store it in
+  `/autores` (`asegurarAutor()` writes `wikipedia` when `fichaDeAutor()` found one), and the
+  imported rows, which have no such field, get it from `articuloDeAutor()` the first time the
+  sheet is opened (cached in `WIKI_AUTOR` for the session). That lookup searches the Spanish
+  Wikipedia with `autor` and with `nombre + apellidos`, accepts only an article titled like the
+  person (`nombreEnArticulo()`: surnames as whole words, given names or initials, one edit
+  distance for long words so «Dostoievski» finds «Dostoyevski») and only if the short
+  description names a writing job (`TIPO_AUTOR`); without a description the title has to match
+  exactly. If nothing passes, no link is shown — better than linking a namesake.
+- On a book sheet the author's link goes above the author form (`#autor-wiki`,
+  `pintarWikipediaAutor()`), so the header keeps showing the book's article.
 
 ## Autores
 
 - `asegurarAutor()` only creates an author when the book is saved and the person is not
   already in `/autores`. It returns `{ coda, notas }`; the note
   ("Autor nuevo: … (Reino Unido, 1775–1817, mujer).") is appended to the save message.
+  - Con un autor nuevo, `lector.html` enseña antes de guardar la ficha que se creará
+    (`mostrarAutorNuevo()`, bloque `#autor-nuevo`): nombre completo, nacionalidad,
+    nacimiento–muerte, sexo y enlace a su artículo. Al salir del campo de autor se busca (y se
+    oculta si ya existe en `/autores`); `guardar()` pasa esa misma ficha a
+    `asegurarAutor(nombre, ficha)` para no consultar Wikipedia dos veces. Si el campo se edita
+    a mano, el aviso se oculta hasta el `change`, y una respuesta lenta de otro nombre se
+    descarta comparando con el valor actual. La fila creada guarda también `wikipedia` (la URL
+    del artículo, o `''`), que es la que enseña la ficha del autor sin volver a buscar.
   - Matching cannot be a plain string compare: 64 of the 113 imported rows store only the
     surname in `autor` (`"Pérez-Reverte"`, `"García Márquez"`) while `nombre`/`apellidos`
-    hold the rest, so an exact lookup would duplicate most authors. `mismoAutor()` splits
-    both sides into tokens (`tokensNombre()`, accents/dots/hyphens removed) and accepts when
-    the tail of the scanned name starts the stored surnames and the remaining words match the
-    given names, initials included (`"J.R.R. Tolkien"` → `"John Ronald Reuel Tolkien"`).
+    hold the rest, so an exact lookup would duplicate most authors. `mismoAutorFicha()`
+    splits both sides into tokens (`tokensNombre()`, accents/dots/hyphens removed) and accepts
+    when the tail of the scanned name starts the stored surnames and the remaining words
+    match the given names, initials included (`"J.R.R. Tolkien"` →
+    `"John Ronald Reuel Tolkien"`). `mismoAutor()` is the older, looser test that compares a
+    name against a **list of texts** (article extracts, `author_name` arrays) by surname only;
+    the two must keep different names: with two `function mismoAutor` declarations the later
+    one wins and silently breaks `consultarOpenLibrary()` and the article search.
   - Two rows matching the same name (`"Cornwell"`) are treated as ambiguous: `buscarAutor()`
     returns nothing rather than linking to the wrong person.
   - `limpiarNombreAutor()` runs first, so `"Pérez-Reverte, Arturo"` is looked up as

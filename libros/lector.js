@@ -24,6 +24,7 @@ var camaraOcr = null;
 var ocrOcupado = false;
 var ultimoLibro = null;
 var autoresCache = null; // lista de fichas de /autores, para no crear duplicados
+var autorPreview = null; // { nombre, ficha } del autor nuevo que se enseña antes de guardar
 var metaInicial = null;
 var cacheLibros = null;
 var cacheEdiciones = {};
@@ -745,6 +746,42 @@ function mismoTitulo(a, b) {
   return x === y || y.indexOf(x) === 0 || x.indexOf(y) === 0;
 }
 
+/**
+ * ¿El artículo se llama como la obra? Se comparan las palabras con contenido,
+ * así que «Matar a un ruiseñor» casa con «Matar un ruiseñor» y «El jugador» con
+ * «El jugador (Dostoyevski)», pero «Los mundos de Ursula K. Le Guin» no con
+ * «Premio Ursula K. Le Guin» ni con «El nombre del mundo es Bosque».
+ */
+var PALABRAS_VACIAS = {
+  a: 1, al: 1, de: 1, del: 1, el: 1, la: 1, las: 1, los: 1, un: 1, una: 1,
+  unos: 1, unas: 1, y: 1, e: 1, en: 1, con: 1, por: 1, para: 1, the: 1
+};
+
+function palabrasTitulo(texto) {
+  return normalizarNombre(texto)
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .split(' ')
+    .filter(function (p) { return p && !PALABRAS_VACIAS[p]; });
+}
+
+function tituloDeObra(bases, tituloArticulo) {
+  var articulo = palabrasTitulo(tituloArticulo);
+  if (!articulo.length) return false;
+
+  for (var i = 0; i < bases.length; i++) {
+    var base = palabrasTitulo(bases[i]);
+    if (!base.length) continue;
+
+    var largo = Math.min(base.length, articulo.length);
+    var igual = true;
+    for (var j = 0; j < largo; j++) {
+      if (base[j] !== articulo[j]) { igual = false; break; }
+    }
+    if (igual) return true;
+  }
+  return false;
+}
+
 function mismoAutor(autor, lista) {
   // Se exige que coincida el apellido (última palabra) como palabra completa:
   // así "Miguel de Unamuno" no se da por igual a "Miguel de Cervantes".
@@ -963,6 +1000,10 @@ async function articuloWikipedia(info, isbn) {
   var respaldo = null;
   for (var k = 0; k < fichas.length; k++) {
     if (!esArticuloDeLibro(fichas[k])) continue;
+    // El artículo tiene que ser de esta obra. Sin esto, buscar por autor trae
+    // «El nombre del mundo es Bosque» o «Premio Ursula K. Le Guin» cuando la
+    // obra buscada no tiene artículo propio.
+    if (!tituloDeObra(bases, fichas[k].titulo)) continue;
     if (autor && mismoAutor(autor, [fichas[k].descripcion, fichas[k].extracto])) return fichas[k];
     if (!respaldo) respaldo = fichas[k];
   }
@@ -1101,7 +1142,7 @@ async function buscarPorTitulo(info) {
     for (var i = 0; i < autores.length; i++) {
       if (Number(autores[i].coda) === Number(coda)) { ficha = autores[i]; break; }
     }
-    return ficha ? mismoAutor(autor, ficha) : false;
+    return ficha ? mismoAutorFicha(autor, ficha) : false;
   });
 
   if (candidatos.length === 1) {
@@ -1178,6 +1219,73 @@ async function buscar(isbn) {
   }
 }
 
+/**
+ * Enseña los datos del autor antes de guardar el libro. Si ya está en /autores
+ * no hay nada que enseñar; si es nuevo, se busca en Wikipedia/Wikidata una sola
+ * vez y `guardar()` reutiliza esa ficha en vez de repetir la consulta.
+ */
+async function mostrarAutorNuevo(nombre) {
+  var caja = $('autor-nuevo');
+  var texto = $('autor-nuevo-texto');
+  var cajaWiki = $('autor-nuevo-wikipedia');
+  var enlace = $('autor-nuevo-enlace');
+  if (!caja) return;
+
+  var limpio = limpiarNombreAutor(nombre);
+  autorPreview = null;
+  caja.hidden = true;
+  cajaWiki.hidden = true;
+  enlace.removeAttribute('href');
+  texto.textContent = '';
+  if (!limpio || !db) return;
+
+  var lista = [];
+  try {
+    lista = await cargarAutores();
+  } catch (e) {
+    return;
+  }
+  if (buscarAutor(limpio, lista)) return;
+  if (limpiarNombreAutor($('f-autor').value) !== limpio) return;
+
+  caja.hidden = false;
+  texto.textContent = 'Buscando datos de «' + limpio + '» en Wikipedia…';
+
+  var ficha = null;
+  try {
+    ficha = await fichaDeAutor(limpio);
+  } catch (e) { /* se creará sin datos */ }
+
+  // Si mientras se buscaba se cambió el autor, no se pinta lo viejo.
+  if (limpiarNombreAutor($('f-autor').value) !== limpio) return;
+  autorPreview = { nombre: limpio, ficha: ficha };
+
+  if (!ficha) {
+    texto.textContent = 'Autor nuevo: ' + limpio +
+      ' (sin datos en Wikipedia). Se creará al guardar el libro.';
+    return;
+  }
+
+  var completo = [ficha.nombre, ficha.apellidos].filter(Boolean).join(' ') || limpio;
+  var partes = [completo];
+  if (ficha.nacionalidad) partes.push(ficha.nacionalidad);
+  if (ficha.nacimiento) {
+    partes.push(String(ficha.nacimiento) + (ficha.muerte ? '–' + ficha.muerte : ''));
+  } else if (ficha.muerte) {
+    partes.push('† ' + ficha.muerte);
+  }
+  if (ficha.sexo) partes.push(ficha.sexo);
+
+  texto.textContent = 'Autor nuevo: ' + partes.join(' · ') +
+    '. Se creará al guardar el libro.';
+
+  if (ficha.wikipedia) {
+    enlace.href = ficha.wikipedia;
+    enlace.textContent = 'Wikipedia: ' + nombreArticuloWikipedia(ficha.wikipedia);
+    cajaWiki.hidden = false;
+  }
+}
+
 /** Sugerencias de idioma y género con lo que ya hay en el catálogo. */
 function sugerenciasFicha() {
   var idiomas = Object.keys(IDIOMAS).map(function (c) { return IDIOMAS[c].etiqueta; });
@@ -1249,6 +1357,9 @@ function mostrar(libro) {
   notaPaginas.hidden = !v.paginasEstimadas;
 
   sugerenciasFicha();
+
+  // Si el autor no está todavía en /autores, se enseña su ficha antes de guardar.
+  mostrarAutorNuevo($('f-autor').value);
 
   var enBase = 'no';
   if (libro.existente && libro.existente.porTitulo) {
@@ -1663,7 +1774,9 @@ async function fichaDeAutor(nombre) {
     nacionalidad: pais,
     nacimiento: anioAfirmacion(entidad, 'P569') || null,
     muerte: anioAfirmacion(entidad, 'P570') || null,
-    sexo: SEXOS_WIKIDATA[sexo] || ''
+    sexo: SEXOS_WIKIDATA[sexo] || '',
+    // Solo para el aviso previo; /autores no guarda este campo.
+    wikipedia: urlWikipedia(ficha.titulo)
   };
 }
 
@@ -1672,7 +1785,7 @@ async function fichaDeAutor(nombre) {
  * guarda a veces solo el apellido («Pérez-Reverte»), así que comparar cadenas
  * no basta: «Arturo Pérez-Reverte» tiene que cuadrar por tokens.
  */
-function mismoAutor(entrada, ficha) {
+function mismoAutorFicha(entrada, ficha) {
   var e = tokensNombre(entrada);
   if (!e.length) return false;
 
@@ -1722,12 +1835,16 @@ async function cargarAutores() {
 
 /** Ficha existente del autor, o null si no hay ninguna o hay varias. */
 function buscarAutor(nombre, lista) {
-  var encontrados = lista.filter(function (a) { return mismoAutor(nombre, a); });
+  var encontrados = lista.filter(function (a) { return mismoAutorFicha(nombre, a); });
   // Dos autores con el mismo apellido: mejor no adivinar cuál es.
   return encontrados.length === 1 ? encontrados[0] : null;
 }
 
-async function asegurarAutor(nombre) {
+/**
+ * Crea el autor si no existe. `ficha` permite pasar los datos ya buscados para
+ * el aviso previo: `undefined` los busca aquí y `null` son «sin datos».
+ */
+async function asegurarAutor(nombre, ficha) {
   // "Pérez-Reverte, Arturo" → "Arturo Pérez-Reverte".
   var limpio = limpiarNombreAutor(nombre);
   if (!limpio) return { coda: null, notas: '' };
@@ -1736,11 +1853,12 @@ async function asegurarAutor(nombre) {
   var existente = buscarAutor(limpio, lista);
   if (existente) return { coda: existente.coda, notas: '' };
 
-  estado('Buscando datos del autor «' + limpio + '»…');
-  var ficha = null;
-  try {
-    ficha = await fichaDeAutor(limpio);
-  } catch (e) { /* se crea sin datos */ }
+  if (ficha === undefined) {
+    estado('Buscando datos del autor «' + limpio + '»…');
+    try {
+      ficha = await fichaDeAutor(limpio);
+    } catch (e) { /* se crea sin datos */ }
+  }
 
   var coda = await siguienteId('ultimoCoda');
   await db.ref('autores/' + coda).set({
@@ -1751,7 +1869,9 @@ async function asegurarAutor(nombre) {
     nacionalidad: (ficha && ficha.nacionalidad) || '',
     nacimiento: (ficha && ficha.nacimiento) || null,
     muerte: (ficha && ficha.muerte) || null,
-    sexo: (ficha && ficha.sexo) || ''
+    sexo: (ficha && ficha.sexo) || '',
+    // El artículo hallado al crearlo: la ficha del autor lo enseña sin buscar.
+    wikipedia: (ficha && ficha.wikipedia) || ''
   });
   lista.push({
     coda: coda,
@@ -1835,7 +1955,12 @@ async function guardar() {
   try {
     var isbn = ultimoLibro.isbn;
     var v = ultimoLibro.info || {};
-    var autor = await asegurarAutor(valorTexto('f-autor'));
+    var nombreAutor = valorTexto('f-autor');
+    var limpioAutor = limpiarNombreAutor(nombreAutor);
+    var fichaAutor = autorPreview && autorPreview.nombre === limpioAutor
+      ? autorPreview.ficha
+      : undefined;
+    var autor = await asegurarAutor(nombreAutor, fichaAutor);
     var portada = (v.imageLinks && (v.imageLinks.thumbnail || v.imageLinks.smallThumbnail)) || '';
 
     var datos = {
@@ -1897,6 +2022,9 @@ async function guardar() {
     ultimoLibro.ambiguo = null;
     $('existente-caja').hidden = true;
     $('existente-lista').innerHTML = '';
+    // El autor ya está creado: el aviso previo deja de tener sentido.
+    autorPreview = null;
+    $('autor-nuevo').hidden = true;
     $('btn-guardar').textContent = 'Actualizar en Firebase';
     estado(mensaje, 'ok');
     prepararLectura(clave);
@@ -2501,6 +2629,14 @@ $('f-titulo').addEventListener('input', function () {
 
 $('f-autor').addEventListener('input', function () {
   $('autores').textContent = this.value.trim();
+  // Lo que se veía era de otro nombre: se oculta hasta terminar de escribirlo.
+  autorPreview = null;
+  $('autor-nuevo').hidden = true;
+});
+
+// Al salir del campo, se buscan los datos del autor nuevo.
+$('f-autor').addEventListener('change', function () {
+  mostrarAutorNuevo(this.value);
 });
 
 // Con varias fichas iguales, elegir una equivale a haberla encontrado: se
